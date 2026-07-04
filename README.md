@@ -5,17 +5,24 @@ using AES-256-GCM (authenticated encryption) and PBKDF2-HMAC-SHA256 key derivati
 
 ## Usage
 
-    PocketEncryptor <input_file> <output_file> <-E|-D>
+    PocketEncryptor <input> <output> <-E|-D|-r>
 
 - `-E`  Encrypt `input_file`, writing the result to `output_file`.
         You will be prompted to enter and confirm a passphrase (masked input).
 - `-D`  Decrypt `input_file`, writing the result to `output_file`.
         You will be prompted to enter the passphrase used at encryption time.
+- `-r`  Recursively encrypt **every file** under `input_dir`, writing encrypted
+        copies into `output_dir` and preserving the subfolder structure. Each
+        encrypted file gets a `.pkec` extension (e.g. `notes.txt` →
+        `notes.txt.pkec`). You are prompted once, and the same passphrase is
+        used for all files. Originals are left untouched. To decrypt them later,
+        run `-D` on each `.pkec` file.
 
 ## Example
 
     dotnet run --project PocketEncryptor -- secret.docx secret.docx.enc -E
     dotnet run --project PocketEncryptor -- secret.docx.enc restored.docx -D
+    dotnet run --project PocketEncryptor -- ./my_folder ./encrypted_folder -r
 
 ## Security notes
 

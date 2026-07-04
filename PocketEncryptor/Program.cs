@@ -41,9 +41,13 @@ namespace PocketEncryptor
             {
                 return RunDecrypt(inputPath, outputPath);
             }
+            else if (mode.Equals("-r"))
+            {
+                return RunEncryptRecursive(inputPath, outputPath);
+            }
             else
             {
-                Console.WriteLine("No valid process.... Please write either -E for encryption or -D for decryption");
+                Console.WriteLine("No valid process.... Please write either -E for encryption, -D for decryption, or -r for recursive directory encryption");
                 PrintUsage();
                 return 1;
             }
@@ -51,10 +55,13 @@ namespace PocketEncryptor
 
         static void PrintUsage()
         {
-            Console.WriteLine("Usage: PocketEncryptor <input_file> <output_file> <-E|-D>");
+            Console.WriteLine("Usage: PocketEncryptor <input> <output> <-E|-D|-r>");
             Console.WriteLine("  -E  Encrypt input_file to output_file (you will be prompted for a passphrase)");
             Console.WriteLine("  -D  Decrypt input_file to output_file (you will be prompted for the passphrase)");
+            Console.WriteLine("  -r  Recursively encrypt every file under input_dir, writing encrypted");
+            Console.WriteLine("      copies (.pkec) into output_dir with the same passphrase for all files");
             Console.WriteLine("Eg: PocketEncryptor secret.docx secret.enc -E");
+            Console.WriteLine("    PocketEncryptor ./my_folder ./encrypted_folder -r");
         }
 
         static int RunEncrypt(string inputPath, string outputPath)
@@ -99,6 +106,79 @@ namespace PocketEncryptor
             catch (Exception ex)
             {
                 return ReportError(ex, inputPath, outputPath);
+            }
+        }
+
+        // Encrypted files produced by -r get this extra extension so they are
+        // easy to spot and so re-running -r into the same tree skips them.
+        private const string EncryptedExtension = ".pkec";
+
+        static int RunEncryptRecursive(string inputDir, string outputDir)
+        {
+            if (!Directory.Exists(inputDir))
+            {
+                Console.WriteLine("File error: directory not found: " + inputDir);
+                return 1;
+            }
+
+            string password = ReadNewPasswordWithConfirmation();
+            if (password == null)
+            {
+                Console.WriteLine("Aborted: passphrases did not match.");
+                return 1;
+            }
+
+            // Resolve to full paths so we can reliably skip the output directory
+            // if it happens to live inside the input directory (which would
+            // otherwise make us try to re-encrypt our own output).
+            string inputRoot = Path.GetFullPath(inputDir);
+            string outputRoot = Path.GetFullPath(outputDir);
+
+            Console.WriteLine("Encrypting all files under: " + inputRoot);
+            int succeeded = 0;
+            int failed = 0;
+            EncryptDirectoryRecursive(inputRoot, inputRoot, outputRoot, password, ref succeeded, ref failed);
+
+            Console.WriteLine("Done. " + succeeded + " file(s) encrypted, " + failed + " failed.");
+            return failed == 0 ? 0 : 1;
+        }
+
+        // Walks currentDir, encrypting each file into outputRoot while preserving
+        // the tree's relative structure, then recurses into each subdirectory.
+        public static void EncryptDirectoryRecursive(string inputRoot, string currentDir, string outputRoot,
+            string password, ref int succeeded, ref int failed)
+        {
+            foreach (string file in Directory.GetFiles(currentDir))
+            {
+                try
+                {
+                    string relative = Path.GetRelativePath(inputRoot, file);
+                    string destPath = Path.Combine(outputRoot, relative + EncryptedExtension);
+                    Directory.CreateDirectory(Path.GetDirectoryName(destPath));
+
+                    byte[] plain = File.ReadAllBytes(file);
+                    byte[] encrypted = Encrypt(plain, password);
+                    File.WriteAllBytes(destPath, encrypted);
+
+                    Console.WriteLine("Encrypted: " + relative);
+                    succeeded++;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Failed:    " + file + " (" + ex.Message + ")");
+                    failed++;
+                }
+            }
+
+            foreach (string subDir in Directory.GetDirectories(currentDir))
+            {
+                // Don't descend into the output directory if it is nested inside
+                // the input tree, otherwise we'd encrypt our own output.
+                if (Path.GetFullPath(subDir).Equals(outputRoot, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                EncryptDirectoryRecursive(inputRoot, subDir, outputRoot, password, ref succeeded, ref failed);
             }
         }
 

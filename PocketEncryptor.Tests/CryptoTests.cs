@@ -88,5 +88,48 @@ namespace PocketEncryptor.Tests
             Assert.Throws<InvalidDataException>(
                 () => Program.Decrypt(encrypted, "pw"));
         }
+
+        [Fact]
+        public void EncryptDirectoryRecursive_EncryptsAllFilesPreservingStructure()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "pkec_test_" + Guid.NewGuid().ToString("N"));
+            string inputDir = Path.Combine(root, "in");
+            string outputDir = Path.Combine(root, "out");
+            const string password = "dir-password";
+
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(inputDir, "sub"));
+                byte[] c1 = Encoding.UTF8.GetBytes("file one contents");
+                byte[] c2 = RandomBytes(1000);
+                File.WriteAllBytes(Path.Combine(inputDir, "a.txt"), c1);
+                File.WriteAllBytes(Path.Combine(inputDir, "sub", "b.bin"), c2);
+
+                int ok = 0, failed = 0;
+                string fullInput = Path.GetFullPath(inputDir);
+                Program.EncryptDirectoryRecursive(fullInput, fullInput, Path.GetFullPath(outputDir),
+                    password, ref ok, ref failed);
+
+                Assert.Equal(2, ok);
+                Assert.Equal(0, failed);
+
+                // Structure is mirrored with a .pkec extension...
+                string e1 = Path.Combine(outputDir, "a.txt.pkec");
+                string e2 = Path.Combine(outputDir, "sub", "b.bin.pkec");
+                Assert.True(File.Exists(e1));
+                Assert.True(File.Exists(e2));
+
+                // ...and every file round-trips with the shared password.
+                Assert.Equal(c1, Program.Decrypt(File.ReadAllBytes(e1), password));
+                Assert.Equal(c2, Program.Decrypt(File.ReadAllBytes(e2), password));
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, true);
+                }
+            }
+        }
     }
 }
