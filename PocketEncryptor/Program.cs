@@ -1,168 +1,359 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace PocketEncryptor
 {
-    internal class Program
+    public class Program
     {
-        static string aes_key = "";
-        static byte[] aes_iv = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
+        // Crypto parameters
+        private const int SaltSize = 16;   // PBKDF2 salt
+        private const int NonceSize = 12;  // AES-GCM standard 96-bit nonce
+        private const int TagSize = 16;    // AES-GCM 128-bit authentication tag
+        private const int KeySize = 32;    // AES-256
+        private const int Pbkdf2Iterations = 600_000; // OWASP (2023) PBKDF2-HMAC-SHA256 guidance
 
-        static void Main(string[] args)
+        // File format header
+        private static readonly byte[] Magic = Encoding.ASCII.GetBytes("PKEC");
+        private const byte FormatVersion = 0x01;
+        private static readonly int HeaderSize = Magic.Length + 1 + SaltSize + NonceSize + TagSize; // 49 bytes
+
+        static int Main(string[] args)
         {
             Console.WriteLine("This is your personal pocket encryptor");
 
-            string file_path = "";
-            string output_file = "";
-            string process = "";
-
-            if (args.Length == 4)
+            if (args.Length != 3)
             {
-                file_path = args[0];
-                output_file = args[1];
-                string input_key = args[2];
-                process = args[3];
-                aes_key = input_key;
+                PrintUsage();
+                return 1;
+            }
 
-                string hashed = ComputeSha256Hash(aes_key);
-                string fixed_hash = hashed.Substring(0, 32);
-                aes_key = fixed_hash;
+            string inputPath = args[0];
+            string outputPath = args[1];
+            string mode = args[2];
 
-                if (process.Equals("-E"))
-                {
-                    try
-                    {
-                        Console.WriteLine("Encrypting your file, please wait...");
-                        byte[] plain_file = File.ReadAllBytes(file_path);
-                        byte[] byte_encrypted = EncryptAES(Convert.ToBase64String(plain_file));
-                        File.WriteAllBytes(output_file, byte_encrypted);
-                        Console.WriteLine("Encrypted !!! File saved in: "+output_file);
-
-                        /*byte[] encrypted_file = File.ReadAllBytes(file_path);
-                        String byte_string_decrypted = DecryptAES(encrypted_file);
-                        byte[] byte_decrypted = Convert.FromBase64String(byte_string_decrypted);
-                        File.WriteAllBytes(output_file, byte_decrypted);*/
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Encryption Failed....!!!");
-                        //Console.WriteLine(e);
-                    }
-                }
-                else if (process.Equals("-D"))
-                {
-                    try
-                    {
-                        /*byte[] plain_file = File.ReadAllBytes(file_path);
-                        byte[] byte_encrypted = EncryptAES(Convert.ToBase64String(plain_file));
-                        File.WriteAllBytes(output_file, byte_encrypted);*/
-
-                        Console.WriteLine("Decrypting your file, please wait...");
-                        byte[] encrypted_file = File.ReadAllBytes(file_path);
-                        String byte_string_decrypted = DecryptAES(encrypted_file);
-                        byte[] byte_decrypted = Convert.FromBase64String(byte_string_decrypted);
-                        File.WriteAllBytes(output_file, byte_decrypted);
-                        Console.WriteLine("Decrypted !!! File saved in: " + output_file);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Decryption Failed....!!!");
-                        //Console.WriteLine(e);
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("No valid process.... Please write either -E for encryption or -D for decryption");
-                }
+            if (mode.Equals("-E"))
+            {
+                return RunEncrypt(inputPath, outputPath);
+            }
+            else if (mode.Equals("-D"))
+            {
+                return RunDecrypt(inputPath, outputPath);
+            }
+            else if (mode.Equals("-r"))
+            {
+                return RunEncryptRecursive(inputPath, outputPath);
             }
             else
             {
-                Console.WriteLine("Arguements missing!!! \n[1] file path. [2] output file path [3] encryption key [4] process '-E/-D' \nEg: program.exe input_file output_file mysecretkey -E");
+                Console.WriteLine("No valid process.... Please write either -E for encryption, -D for decryption, or -r for recursive directory encryption");
+                PrintUsage();
+                return 1;
             }
         }
 
-        static string ComputeSha256Hash(string rawData)
+        static void PrintUsage()
         {
-            // Create a SHA256   
-            using (SHA256 sha256Hash = SHA256.Create())
-            {
-                // ComputeHash - returns byte array  
-                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+            Console.WriteLine("Usage: PocketEncryptor <input> <output> <-E|-D|-r>");
+            Console.WriteLine("  -E  Encrypt input_file to output_file (you will be prompted for a passphrase)");
+            Console.WriteLine("  -D  Decrypt input_file to output_file (you will be prompted for the passphrase)");
+            Console.WriteLine("  -r  Recursively encrypt every file under input_dir, writing encrypted");
+            Console.WriteLine("      copies (.pkec) into output_dir with the same passphrase for all files");
+            Console.WriteLine("Eg: PocketEncryptor secret.docx secret.enc -E");
+            Console.WriteLine("    PocketEncryptor ./my_folder ./encrypted_folder -r");
+        }
 
-                // Convert byte array to a string   
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
+        static int RunEncrypt(string inputPath, string outputPath)
+        {
+            try
+            {
+                string password = ReadNewPasswordWithConfirmation();
+                if (password == null)
                 {
-                    builder.Append(bytes[i].ToString("x2"));
+                    Console.WriteLine("Aborted: passphrases did not match.");
+                    return 1;
                 }
-                return builder.ToString();
+
+                Console.WriteLine("Encrypting your file, please wait...");
+                byte[] plain = File.ReadAllBytes(inputPath);
+                byte[] output = Encrypt(plain, password);
+                File.WriteAllBytes(outputPath, output);
+                Console.WriteLine("Encrypted !!! File saved in: " + outputPath);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                return ReportError(ex, inputPath, outputPath);
             }
         }
 
-        public static byte[] EncryptAES(string plainText)
+        static int RunDecrypt(string inputPath, string outputPath)
         {
-            byte[] encrypted;
-
-            using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
+            try
             {
-                aes.Key = Convert.FromBase64String(aes_key);
-                aes.IV = aes_iv;
+                string password = ReadPassword("Enter passphrase: ");
 
-                aes.Mode = CipherMode.CBC;
-                aes.Padding = PaddingMode.PKCS7;
+                Console.WriteLine("Decrypting your file, please wait...");
+                byte[] fileBytes = File.ReadAllBytes(inputPath);
+                // Decrypt fully into memory first so a failure never leaves a
+                // corrupt/partial output file on disk.
+                byte[] plain = Decrypt(fileBytes, password);
+                File.WriteAllBytes(outputPath, plain);
+                Console.WriteLine("Decrypted !!! File saved in: " + outputPath);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                return ReportError(ex, inputPath, outputPath);
+            }
+        }
 
-                ICryptoTransform enc = aes.CreateEncryptor(aes.Key, aes.IV);
+        // Encrypted files produced by -r get this extra extension so they are
+        // easy to spot and so re-running -r into the same tree skips them.
+        private const string EncryptedExtension = ".pkec";
 
-                using (MemoryStream ms = new MemoryStream())
+        static int RunEncryptRecursive(string inputDir, string outputDir)
+        {
+            if (!Directory.Exists(inputDir))
+            {
+                Console.WriteLine("File error: directory not found: " + inputDir);
+                return 1;
+            }
+
+            string password = ReadNewPasswordWithConfirmation();
+            if (password == null)
+            {
+                Console.WriteLine("Aborted: passphrases did not match.");
+                return 1;
+            }
+
+            // Resolve to full paths so we can reliably skip the output directory
+            // if it happens to live inside the input directory (which would
+            // otherwise make us try to re-encrypt our own output).
+            string inputRoot = Path.GetFullPath(inputDir);
+            string outputRoot = Path.GetFullPath(outputDir);
+
+            Console.WriteLine("Encrypting all files under: " + inputRoot);
+            int succeeded = 0;
+            int failed = 0;
+            EncryptDirectoryRecursive(inputRoot, inputRoot, outputRoot, password, ref succeeded, ref failed);
+
+            Console.WriteLine("Done. " + succeeded + " file(s) encrypted, " + failed + " failed.");
+            return failed == 0 ? 0 : 1;
+        }
+
+        // Walks currentDir, encrypting each file into outputRoot while preserving
+        // the tree's relative structure, then recurses into each subdirectory.
+        public static void EncryptDirectoryRecursive(string inputRoot, string currentDir, string outputRoot,
+            string password, ref int succeeded, ref int failed)
+        {
+            foreach (string file in Directory.GetFiles(currentDir))
+            {
+                try
                 {
-                    using (CryptoStream cs = new CryptoStream(ms, enc, CryptoStreamMode.Write))
-                    {
-                        using (StreamWriter sw = new StreamWriter(cs))
-                        {
-                            sw.Write(plainText);
-                        }
+                    string relative = Path.GetRelativePath(inputRoot, file);
+                    string destPath = Path.Combine(outputRoot, relative + EncryptedExtension);
+                    Directory.CreateDirectory(Path.GetDirectoryName(destPath));
 
-                        encrypted = ms.ToArray();
+                    byte[] plain = File.ReadAllBytes(file);
+                    byte[] encrypted = Encrypt(plain, password);
+                    File.WriteAllBytes(destPath, encrypted);
+
+                    Console.WriteLine("Encrypted: " + relative);
+                    succeeded++;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Failed:    " + file + " (" + ex.Message + ")");
+                    failed++;
+                }
+            }
+
+            foreach (string subDir in Directory.GetDirectories(currentDir))
+            {
+                // Don't descend into the output directory if it is nested inside
+                // the input tree, otherwise we'd encrypt our own output.
+                if (Path.GetFullPath(subDir).Equals(outputRoot, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                EncryptDirectoryRecursive(inputRoot, subDir, outputRoot, password, ref succeeded, ref failed);
+            }
+        }
+
+        static int ReportError(Exception ex, string inputPath, string outputPath)
+        {
+            switch (ex)
+            {
+                case CryptographicException _:
+                    // AES-GCM tag mismatch: wrong password or tampered/corrupt file.
+                    Console.WriteLine("Decryption failed: wrong passphrase or the file is corrupted/tampered with.");
+                    break;
+                case InvalidDataException _:
+                    // Header validation messages are already user-facing.
+                    Console.WriteLine(ex.Message);
+                    break;
+                case FileNotFoundException _:
+                case DirectoryNotFoundException _:
+                case UnauthorizedAccessException _:
+                case IOException _:
+                    Console.WriteLine("File error: " + ex.Message);
+                    break;
+                default:
+                    Console.WriteLine("Unexpected error: " + ex.Message);
+                    break;
+            }
+
+            // Debugging escape hatch: full details only when explicitly requested.
+            if (Environment.GetEnvironmentVariable("POCKETENCRYPTOR_DEBUG") == "1")
+            {
+                Console.WriteLine(ex.ToString());
+            }
+
+            return 1;
+        }
+
+        // Derives a 256-bit AES key from a passphrase using PBKDF2-HMAC-SHA256.
+        static byte[] DeriveKey(string password, byte[] salt, int iterations = Pbkdf2Iterations)
+        {
+            using (var kdf = new Rfc2898DeriveBytes(password, salt, iterations, HashAlgorithmName.SHA256))
+            {
+                return kdf.GetBytes(KeySize);
+            }
+        }
+
+        // Encrypts plaintext with AES-256-GCM and returns a self-describing byte
+        // array: [magic][version][salt][nonce][tag][ciphertext].
+        public static byte[] Encrypt(byte[] plaintext, string password)
+        {
+            byte[] salt = new byte[SaltSize];
+            byte[] nonce = new byte[NonceSize];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(salt);
+                rng.GetBytes(nonce);
+            }
+
+            byte[] key = DeriveKey(password, salt);
+            byte[] ciphertext = new byte[plaintext.Length];
+            byte[] tag = new byte[TagSize];
+
+            using (var aes = new AesGcm(key))
+            {
+                aes.Encrypt(nonce, plaintext, ciphertext, tag);
+            }
+
+            byte[] output = new byte[HeaderSize + ciphertext.Length];
+            int offset = 0;
+            Buffer.BlockCopy(Magic, 0, output, offset, Magic.Length); offset += Magic.Length;
+            output[offset] = FormatVersion; offset += 1;
+            Buffer.BlockCopy(salt, 0, output, offset, SaltSize); offset += SaltSize;
+            Buffer.BlockCopy(nonce, 0, output, offset, NonceSize); offset += NonceSize;
+            Buffer.BlockCopy(tag, 0, output, offset, TagSize); offset += TagSize;
+            Buffer.BlockCopy(ciphertext, 0, output, offset, ciphertext.Length);
+
+            return output;
+        }
+
+        // Parses and verifies a file produced by Encrypt, returning the plaintext.
+        // Throws InvalidDataException for a malformed header and
+        // CryptographicException for a wrong passphrase or tampered content.
+        public static byte[] Decrypt(byte[] fileBytes, string password)
+        {
+            if (fileBytes.Length < HeaderSize)
+            {
+                throw new InvalidDataException("This does not look like a valid PocketEncryptor file (too short).");
+            }
+
+            int offset = 0;
+            for (int i = 0; i < Magic.Length; i++)
+            {
+                if (fileBytes[i] != Magic[i])
+                {
+                    throw new InvalidDataException("This does not look like a valid PocketEncryptor file (bad or missing header).");
+                }
+            }
+            offset += Magic.Length;
+
+            byte version = fileBytes[offset]; offset += 1;
+            if (version != FormatVersion)
+            {
+                throw new InvalidDataException("Unsupported file format version: " + version + ".");
+            }
+
+            byte[] salt = new byte[SaltSize];
+            Buffer.BlockCopy(fileBytes, offset, salt, 0, SaltSize); offset += SaltSize;
+
+            byte[] nonce = new byte[NonceSize];
+            Buffer.BlockCopy(fileBytes, offset, nonce, 0, NonceSize); offset += NonceSize;
+
+            byte[] tag = new byte[TagSize];
+            Buffer.BlockCopy(fileBytes, offset, tag, 0, TagSize); offset += TagSize;
+
+            int cipherLength = fileBytes.Length - HeaderSize;
+            byte[] ciphertext = new byte[cipherLength];
+            Buffer.BlockCopy(fileBytes, offset, ciphertext, 0, cipherLength);
+
+            byte[] key = DeriveKey(password, salt);
+            byte[] plaintext = new byte[cipherLength];
+
+            using (var aes = new AesGcm(key))
+            {
+                aes.Decrypt(nonce, ciphertext, tag, plaintext);
+            }
+
+            return plaintext;
+        }
+
+        // Reads a passphrase from the console without echoing the real characters.
+        static string ReadPassword(string prompt)
+        {
+            Console.Write(prompt);
+            var sb = new StringBuilder();
+            while (true)
+            {
+                ConsoleKeyInfo keyInfo = Console.ReadKey(intercept: true);
+                if (keyInfo.Key == ConsoleKey.Enter)
+                {
+                    Console.WriteLine();
+                    break;
+                }
+                else if (keyInfo.Key == ConsoleKey.Backspace)
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Remove(sb.Length - 1, 1);
+                        Console.Write("\b \b");
                     }
                 }
-            }
-
-            return encrypted;
-        }
-
-        public static string DecryptAES(byte[] encrypted)
-        {
-            string decrypted = null;
-            byte[] cipher = encrypted;
-
-            using (AesCryptoServiceProvider aes = new AesCryptoServiceProvider())
-            {
-                aes.Key = Convert.FromBase64String(aes_key);
-                //aes.Key = aes_keyy;
-
-                //aes.IV = Convert.FromBase64String(aes_iv);
-                aes.IV = aes_iv;
-                aes.Mode = CipherMode.CBC;
-                aes.Padding = PaddingMode.PKCS7;
-
-                ICryptoTransform dec = aes.CreateDecryptor(aes.Key, aes.IV);
-
-                using (MemoryStream ms = new MemoryStream(cipher))
+                else if (!char.IsControl(keyInfo.KeyChar))
                 {
-                    using (CryptoStream cs = new CryptoStream(ms, dec, CryptoStreamMode.Read))
-                    {
-                        using (StreamReader sr = new StreamReader(cs))
-                        {
-                            decrypted = sr.ReadToEnd();
-                        }
-                    }
+                    sb.Append(keyInfo.KeyChar);
+                    Console.Write("*");
                 }
             }
-            return decrypted;
+
+            // Note: .NET strings are immutable and interned, so the passphrase
+            // cannot be reliably zeroed from memory. Acceptable for a personal tool.
+            return sb.ToString();
+        }
+
+        // Prompts for a passphrase twice (encrypt path) to catch typos. Returns
+        // null after 3 mismatched attempts.
+        static string ReadNewPasswordWithConfirmation()
+        {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                string first = ReadPassword("Enter passphrase: ");
+                string second = ReadPassword("Confirm passphrase: ");
+                if (first == second)
+                {
+                    return first;
+                }
+                Console.WriteLine("Passphrases do not match. Please try again.");
+            }
+            return null;
         }
     }
 }
