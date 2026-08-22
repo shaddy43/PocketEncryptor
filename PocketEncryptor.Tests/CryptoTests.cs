@@ -49,7 +49,9 @@ namespace PocketEncryptor.Tests
             byte[] original = RandomBytes(256);
             byte[] encrypted = Program.Encrypt(original, "right-password");
 
-            Assert.Throws<CryptographicException>(
+            // .NET 7+ throws AuthenticationTagMismatchException, a subclass of
+            // CryptographicException, so accept any derived type.
+            Assert.ThrowsAny<CryptographicException>(
                 () => Program.Decrypt(encrypted, "wrong-password"));
         }
 
@@ -63,7 +65,9 @@ namespace PocketEncryptor.Tests
             // Flip a bit in the ciphertext region (past the 49-byte header).
             encrypted[encrypted.Length - 1] ^= 0xFF;
 
-            Assert.Throws<CryptographicException>(
+            // .NET 7+ throws AuthenticationTagMismatchException, a subclass of
+            // CryptographicException, so accept any derived type.
+            Assert.ThrowsAny<CryptographicException>(
                 () => Program.Decrypt(encrypted, password));
         }
 
