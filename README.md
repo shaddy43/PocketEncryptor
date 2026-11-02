@@ -9,15 +9,24 @@ decrypts on any other.
 
 ## App
 
-Pick a file, enter a password, and save the result wherever you like:
+Pick one or more files, enter a password, and save the results wherever you like:
 
-- Picking a `.pkec` file switches to **Decrypt** automatically; anything else
-  is **Encrypt**.
-- The result is produced (and, when decrypting, fully verified) in the app's
-  private storage first, then copied to the location you choose in the native
-  Save dialog. A wrong password never produces an output file.
-- The app never overwrites the file you picked, needs no network access, and
+- Picking only `.pkec` files switches to **Decrypt** automatically; anything
+  else is **Encrypt**.
+- One file: the native Save dialog opens with the suggested name. Several
+  files: choose a folder once, and every result is saved there. Each file is
+  listed with its own result, so one failure (say, a file with a different
+  password) doesn't stop the rest; press the button again to retry just those.
+- With a mixed selection, Encrypt skips files that are already encrypted and
+  Decrypt skips files that aren't, so both can be handled in two runs.
+- Each result is produced (and, when decrypting, fully verified) in the app's
+  private storage first, then copied to the location you choose. A wrong
+  password never produces an output file.
+- The app never overwrites anything: if a name is taken, the result gets a
+  numbered name such as `photo (1).jpg.pkec`. It needs no network access and
   requests no permissions.
+- On Android, the system folder picker won't offer the root of Download or of
+  the storage itself; choose or create a folder inside them.
 
 ## CLI
 

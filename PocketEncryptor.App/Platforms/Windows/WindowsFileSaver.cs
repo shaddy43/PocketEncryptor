@@ -66,7 +66,7 @@ internal static class WindowsFileSaver
         return destination;
     }
 
-    private static IntPtr GetWindowHandle()
+    internal static IntPtr GetWindowHandle()
     {
         if (Application.Current?.Windows.FirstOrDefault()?.Handler?.PlatformView is Microsoft.UI.Xaml.Window window)
         {

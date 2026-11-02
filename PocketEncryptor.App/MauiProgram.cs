@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Maui;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.LifecycleEvents;
 
 namespace PocketEncryptor.App;
 
@@ -15,6 +16,13 @@ public static class MauiProgram
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
+			})
+			.ConfigureLifecycleEvents(events =>
+			{
+#if ANDROID
+				// Delivers the folder picker's result (see AndroidOutputFolder).
+				events.AddAndroid(android => android.OnActivityResult(Droid.AndroidOutputFolder.OnActivityResult));
+#endif
 			});
 
 #if DEBUG
