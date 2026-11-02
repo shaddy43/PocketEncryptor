@@ -38,14 +38,21 @@ Getting files into the app without the picker:
   files by double-clicking, right-click one, choose **Open with → Choose
   another app → Choose an app on your PC**, pick `PocketEncryptor.App.exe` and
   tick **Always**. Each "Open with" starts its own window for now.
+- **macOS:** drag files from Finder onto the window, or right-click a file and
+  choose **Open With → PocketEncryptor**; double-clicking a `.pkec` file opens
+  it in the app.
+- **iOS:** in Files, tap a `.pkec` file, or use **Share → PocketEncryptor** on
+  any file. Files are used where they are, not copied.
+
+The macOS window has a fixed, phone-like size.
 
 ### Purge
 
-Tick **Purge** (Encrypt mode, Windows and Android) to replace your files with
-their encrypted versions. It asks for confirmation every time, and for each file:
+Tick **Purge** (Encrypt mode) to replace your files with their encrypted
+versions. It asks for confirmation every time, and for each file:
 
 1. The encrypted file is saved: next to the original on Windows; in a folder
-   you choose on Android.
+   you choose on Android, iOS and macOS.
 2. It's read back and fully decrypted with your password as a check. If that
    fails, it's removed and the original is kept.
 3. Only then is the original overwritten with random data and deleted, along

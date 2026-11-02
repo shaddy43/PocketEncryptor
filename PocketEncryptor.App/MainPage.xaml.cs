@@ -35,7 +35,7 @@ public partial class MainPage : ContentPage
         }
 
         IncomingFiles.Changed += ProcessIncoming;
-#if WINDOWS
+#if WINDOWS || IOS || MACCATALYST
         AddDropTarget();
 #endif
     }
@@ -73,7 +73,7 @@ public partial class MainPage : ContentPage
         StyleSegment(DecryptModeButton, selected: !encrypt);
         ConfirmEntry.IsVisible = encrypt;
         PasswordEntry.ReturnType = encrypt ? ReturnType.Next : ReturnType.Done;
-        ReplacePanel.IsVisible = encrypt && CanRemoveOriginals;
+        ReplacePanel.IsVisible = encrypt;
         if (!encrypt)
         {
             ReplaceCheckBox.IsChecked = false;
@@ -85,13 +85,6 @@ public partial class MainPage : ContentPage
     // ------------------------------------------------------------------
     // Purge: delete originals after encrypting
     // ------------------------------------------------------------------
-
-    /// <summary>Platforms where the app gets to delete originals (iOS/macOS: still to come).</summary>
-#if WINDOWS || ANDROID
-    private const bool CanRemoveOriginals = true;
-#else
-    private const bool CanRemoveOriginals = false;
-#endif
 
     private bool RemoveOriginals => _mode == Mode.Encrypt && ReplaceCheckBox.IsChecked;
 
@@ -188,7 +181,7 @@ public partial class MainPage : ContentPage
         {
             foreach (PickedFile file in files)
             {
-                WorkingFiles.DeletePickerCopy(file.File);
+                WorkingFiles.Release(file.File, file.Original);
             }
             ShowStatus(StatusKind.Error, "Couldn't open that file: " + Describe(ex));
             return;
@@ -230,10 +223,10 @@ public partial class MainPage : ContentPage
         }
     }
 
-#if WINDOWS
+#if WINDOWS || IOS || MACCATALYST
     private Brush? _normalStroke;
 
-    /// <summary>Accepts files dragged onto the window, e.g. from File Explorer.</summary>
+    /// <summary>Accepts files dragged onto the window, e.g. from File Explorer or Finder.</summary>
     private void AddDropTarget()
     {
         _normalStroke = FilesBorder.Stroke;
@@ -245,11 +238,13 @@ public partial class MainPage : ContentPage
                 return;
             }
             e.AcceptedOperation = DataPackageOperation.Copy;
+#if WINDOWS
             if (e.PlatformArgs?.DragEventArgs is { } args)
             {
                 args.AcceptedOperation = global::Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
                 args.DragUIOverride.Caption = "Add to PocketEncryptor";
             }
+#endif
             FilesBorder.Stroke = new SolidColorBrush(Res("Primary"));
         };
         drop.DragLeave += (_, _) => FilesBorder.Stroke = _normalStroke;
@@ -260,6 +255,7 @@ public partial class MainPage : ContentPage
     private async void OnDrop(object? sender, DropEventArgs e)
     {
         FilesBorder.Stroke = _normalStroke;
+#if WINDOWS
         if (_busy || e.PlatformArgs?.DragEventArgs.DataView is not { } data
             || !data.Contains(global::Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
         {
@@ -272,6 +268,16 @@ public partial class MainPage : ContentPage
             .Where(f => !string.IsNullOrEmpty(f.Path))
             .Select(f => PickedFile.FromPath(f.Path))];
         bool hadFolders = items.Any(i => i is global::Windows.Storage.IStorageFolder);
+        int failed = 0;
+#else
+        if (_busy || e.PlatformArgs?.DropSession is not { } session)
+        {
+            return;
+        }
+        e.Handled = true;
+
+        (List<PickedFile> files, bool hadFolders, int failed) = await AppleIncomingFiles.ReadDropAsync(session);
+#endif
 
         if (files.Count > 0)
         {
@@ -282,6 +288,12 @@ public partial class MainPage : ContentPage
             ShowStatus(StatusKind.Info, files.Count > 0
                 ? "Folders were left out: only files can be added."
                 : "Folders can't be added yet. Drop the files inside them instead.");
+        }
+        else if (failed > 0)
+        {
+            ShowStatus(StatusKind.Error, files.Count > 0
+                ? $"{failed} of the dropped files couldn't be read and were left out."
+                : "Couldn't read the dropped files.");
         }
     }
 #endif
@@ -298,6 +310,7 @@ public partial class MainPage : ContentPage
             {
                 WorkingFiles.DeletePickerCopy(file.Source);
             }
+            (file.Original as IDisposable)?.Dispose(); // a kept file comes with its own access
         }
         _files.Clear();
         ShowFiles();

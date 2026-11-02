@@ -44,6 +44,57 @@
 			</array>
 		</dict>
 	</dict>
+	<!-- "Open with" / "Open in": .pkec files are ours; any file can be opened to encrypt it. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>PocketEncryptor encrypted file</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.shaddy43.pocketencryptor.pkec</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>File to encrypt</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.shaddy43.pocketencryptor.pkec</string>
+			<key>UTTypeDescription</key>
+			<string>PocketEncryptor encrypted file</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>pkec</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<!-- Use opened files where they are, so Purge can delete them. -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
 </dict>

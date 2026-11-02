@@ -44,6 +44,16 @@ internal static class WorkingFiles
     }
 
     /// <summary>
+    /// Lets go of a file the app no longer lists: deletes its private copy (see
+    /// <see cref="DeletePickerCopy"/>) and ends any access granted to its original.
+    /// </summary>
+    public static void Release(FileResult file, IOriginalFile? original)
+    {
+        DeletePickerCopy(file);
+        (original as IDisposable)?.Dispose();
+    }
+
+    /// <summary>
     /// Called at startup: removes files left behind if the app was killed
     /// mid-operation. With <see cref="HasPrivateStorage"/> this also clears picker copies (see
     /// <see cref="DeletePickerCopy"/>), since nothing else in our private
