@@ -20,8 +20,8 @@ public static class MauiProgram
 			.ConfigureLifecycleEvents(events =>
 			{
 #if ANDROID
-				// Delivers the folder picker's result (see AndroidOutputFolder).
-				events.AddAndroid(android => android.OnActivityResult(Droid.AndroidOutputFolder.OnActivityResult));
+				// Delivers the system pickers' results (see AndroidActivityResults).
+				events.AddAndroid(android => android.OnActivityResult(Droid.AndroidActivityResults.OnActivityResult));
 #endif
 			});
 

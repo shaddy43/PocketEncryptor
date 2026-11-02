@@ -24,6 +24,10 @@ internal sealed class WindowsOutputFolder(string path) : IOutputFolder
         return new WindowsOutputFolder(folder);
     }
 
-    public Task<string?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken) =>
-        Task.Run<string?>(() => Path.GetFileName(OutputFiles.CopyIntoFolder(tempPath, path, fileName)), cancellationToken);
+    public Task<SavedOutput?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken) =>
+        Task.Run<SavedOutput?>(() =>
+        {
+            string saved = OutputFiles.CopyIntoFolder(tempPath, path, fileName);
+            return new SavedOutput(Path.GetFileName(saved), () => File.OpenRead(saved), () => File.Delete(saved));
+        }, cancellationToken);
 }

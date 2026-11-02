@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using PocketEncryptor.App.Services;
 using PocketEncryptor.Core;
 
 namespace PocketEncryptor.App.Models;
@@ -12,16 +13,21 @@ public sealed class SelectedFile : INotifyPropertyChanged
     private FileState _state;
     private string _statusText = string.Empty;
 
-    private SelectedFile(FileResult source, long size, bool isEncrypted)
+    private SelectedFile(PickedFile picked, long size, bool isEncrypted)
     {
-        Source = source;
+        Source = picked.File;
+        Original = picked.Original;
         Size = size;
         IsEncrypted = isEncrypted;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    /// <summary>The file to read (on mobile, a private copy of the original).</summary>
     public FileResult Source { get; }
+
+    /// <summary>The user's original, if the app is allowed to delete it.</summary>
+    internal IOriginalFile? Original { get; }
 
     public string Name => Source.FileName;
 
@@ -49,9 +55,9 @@ public sealed class SelectedFile : INotifyPropertyChanged
         StatusText = statusText;
     }
 
-    public static async Task<SelectedFile> LoadAsync(FileResult file)
+    internal static async Task<SelectedFile> LoadAsync(PickedFile picked)
     {
-        await using Stream stream = await file.OpenReadAsync();
+        await using Stream stream = await picked.File.OpenReadAsync();
         long size;
         try
         {
@@ -64,7 +70,7 @@ public sealed class SelectedFile : INotifyPropertyChanged
 
         byte[] start = new byte[PkecFormat.Magic.Length];
         int read = await stream.ReadAtLeastAsync(start, start.Length, throwOnEndOfStream: false);
-        return new SelectedFile(file, size, PkecFormat.HasMagic(start.AsSpan(0, read)));
+        return new SelectedFile(picked, size, PkecFormat.HasMagic(start.AsSpan(0, read)));
     }
 
     public static string FormatSize(long bytes) => bytes switch

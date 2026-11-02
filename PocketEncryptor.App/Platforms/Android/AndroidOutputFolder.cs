@@ -1,7 +1,5 @@
-using Android.App;
 using Android.Content;
 using Android.Provider;
-using Android.Webkit;
 using PocketEncryptor.App.Services;
 using PocketEncryptor.Core;
 using AUri = Android.Net.Uri;
@@ -20,9 +18,6 @@ namespace PocketEncryptor.App.Droid;
 /// </remarks>
 internal sealed class AndroidOutputFolder : IOutputFolder
 {
-    private const int RequestCode = 0x504B; // "PK"
-    private static TaskCompletionSource<AUri?>? s_pending;
-
     private readonly AUri _folderUri;
     private readonly AUri _childrenUri;
 
@@ -34,48 +29,29 @@ internal sealed class AndroidOutputFolder : IOutputFolder
             ?? throw new IOException("Couldn't open that folder.");
         _childrenUri = DocumentsContract.BuildChildDocumentsUriUsingTree(treeUri, folderId)
             ?? throw new IOException("Couldn't open that folder.");
-        DisplayName = QueryDisplayName(_folderUri) ?? "the chosen folder";
+        DisplayName = AndroidDocuments.QueryDisplayName(_folderUri) ?? "the chosen folder";
     }
 
     public string DisplayName { get; }
 
     public static async Task<IOutputFolder?> PickAsync(CancellationToken cancellationToken)
     {
-        Activity activity = Platform.CurrentActivity ?? throw new InvalidOperationException("The app isn't in the foreground.");
-
-        var pending = new TaskCompletionSource<AUri?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Interlocked.Exchange(ref s_pending, pending)?.TrySetResult(null);
-
         var intent = new Intent(Intent.ActionOpenDocumentTree);
         intent.AddFlags(ActivityFlags.GrantReadUriPermission | ActivityFlags.GrantWriteUriPermission);
-        activity.StartActivityForResult(intent, RequestCode);
-
-        using (cancellationToken.Register(() => pending.TrySetCanceled()))
-        {
-            AUri? treeUri = await pending.Task;
-            return treeUri is null ? null : new AndroidOutputFolder(treeUri);
-        }
+        Intent? result = await AndroidActivityResults.StartAsync(intent, cancellationToken);
+        return result?.Data is { } treeUri ? new AndroidOutputFolder(treeUri) : null;
     }
 
-    /// <summary>Wired up in MauiProgram through the Android lifecycle events.</summary>
-    internal static void OnActivityResult(Activity activity, int requestCode, Result resultCode, Intent? data)
-    {
-        if (requestCode == RequestCode)
+    public Task<SavedOutput?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken) =>
+        Task.Run<SavedOutput?>(async () =>
         {
-            Interlocked.Exchange(ref s_pending, null)?.TrySetResult(resultCode == Result.Ok ? data?.Data : null);
-        }
-    }
-
-    public Task<string?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken) =>
-        Task.Run<string?>(async () =>
-        {
-            ContentResolver resolver = Platform.AppContext.ContentResolver!;
+            ContentResolver resolver = AndroidDocuments.Resolver;
 
             // Pick a free name ourselves, numbered the same way as on the other
             // platforms. (The provider would also avoid a clash, but its
             // "photo.jpg (1).pkec" decrypts to an awkward "photo.jpg (1)".)
             fileName = FreeName(resolver, fileName);
-            AUri document = DocumentsContract.CreateDocument(resolver, _folderUri, MimeTypeFor(fileName), fileName)
+            AUri document = DocumentsContract.CreateDocument(resolver, _folderUri, AndroidDocuments.MimeTypeFor(fileName), fileName)
                 ?? throw new IOException("Couldn't create a file in that folder.");
             try
             {
@@ -88,10 +64,14 @@ internal sealed class AndroidOutputFolder : IOutputFolder
             }
             catch
             {
-                TryDelete(resolver, document); // no half-written files
+                AndroidDocuments.TryDelete(document); // no half-written files
                 throw;
             }
-            return QueryDisplayName(document) ?? fileName;
+
+            return new SavedOutput(
+                AndroidDocuments.QueryDisplayName(document) ?? fileName,
+                OpenRead: () => resolver.OpenInputStream(document) ?? throw new IOException("Couldn't read the saved file."),
+                Delete: () => AndroidDocuments.TryDelete(document));
         }, cancellationToken);
 
     /// <summary>"photo.jpg.pkec", or "photo (1).jpg.pkec" etc. if that's taken.</summary>
@@ -120,38 +100,5 @@ internal sealed class AndroidOutputFolder : IOutputFolder
             candidate = OutputFiles.WithCounter(fileName, counter);
         }
         return candidate;
-    }
-
-    private static string MimeTypeFor(string fileName)
-    {
-        string extension = Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
-        return (extension.Length > 0 ? MimeTypeMap.Singleton?.GetMimeTypeFromExtension(extension) : null)
-            ?? "application/octet-stream";
-    }
-
-    private static string? QueryDisplayName(AUri uri)
-    {
-        try
-        {
-            using var cursor = Platform.AppContext.ContentResolver!.Query(
-                uri, [DocumentsContract.Document.ColumnDisplayName], null, null, null);
-            return cursor is not null && cursor.MoveToFirst() ? cursor.GetString(0) : null;
-        }
-        catch (Java.Lang.Exception)
-        {
-            return null;
-        }
-    }
-
-    private static void TryDelete(ContentResolver resolver, AUri document)
-    {
-        try
-        {
-            DocumentsContract.DeleteDocument(resolver, document);
-        }
-        catch (Java.Lang.Exception)
-        {
-            // Best effort.
-        }
     }
 }

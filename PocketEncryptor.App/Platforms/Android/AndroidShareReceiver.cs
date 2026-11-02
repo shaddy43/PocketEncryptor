@@ -1,5 +1,4 @@
 using Android.Content;
-using Android.Provider;
 using PocketEncryptor.App.Services;
 using AUri = Android.Net.Uri;
 
@@ -14,6 +13,7 @@ namespace PocketEncryptor.App.Droid;
 /// activity that received it is alive, so the files are copied right away,
 /// the same way the system file picker does. The copies live in the app's
 /// private cache and are deleted like picker copies (see WorkingFiles).
+/// Shared files are read-only to us, so their originals can't be deleted.
 /// </remarks>
 internal static class AndroidShareReceiver
 {
@@ -40,16 +40,15 @@ internal static class AndroidShareReceiver
         }
 
         IncomingFiles.Receiving(uris.Count == 1 ? "Receiving the shared file…" : $"Receiving {uris.Count} shared files…");
-        ContentResolver resolver = Platform.AppContext.ContentResolver!;
         _ = Task.Run(() =>
         {
-            var files = new List<FileResult>(uris.Count);
+            var files = new List<PickedFile>(uris.Count);
             int failed = 0;
             foreach (AUri uri in uris)
             {
                 try
                 {
-                    files.Add(new FileResult(CopyToCache(resolver, uri)));
+                    files.Add(new PickedFile(new FileResult(AndroidDocuments.CopyToCache(uri)), Original: null));
                 }
                 catch (Exception ex) when (ex is IOException or Java.Lang.Exception or UnauthorizedAccessException)
                 {
@@ -73,20 +72,9 @@ internal static class AndroidShareReceiver
 
     private static List<AUri> SharedUris(Intent intent)
     {
-        var uris = new List<AUri>();
-
         // The system copies EXTRA_STREAM into ClipData, which is also what the
         // read permission is granted on.
-        if (intent.ClipData is { } clip)
-        {
-            for (int i = 0; i < clip.ItemCount; i++)
-            {
-                if (clip.GetItemAt(i)?.Uri is { } uri)
-                {
-                    uris.Add(uri);
-                }
-            }
-        }
+        List<AUri> uris = AndroidDocuments.UrisIn(intent);
         if (uris.Count == 0)
         {
 #pragma warning disable CA1422, CS0618 // the typed overloads need API 33; these still work everywhere
@@ -101,42 +89,5 @@ internal static class AndroidShareReceiver
 #pragma warning restore CA1422, CS0618
         }
         return uris;
-    }
-
-    private static string CopyToCache(ContentResolver resolver, AUri uri)
-    {
-        string name = SafeFileName(QueryDisplayName(resolver, uri) ?? uri.LastPathSegment);
-        string folder = Path.Combine(FileSystem.CacheDirectory, "shared", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(folder);
-        string path = Path.Combine(folder, name);
-
-        using Stream input = resolver.OpenInputStream(uri) ?? throw new IOException("Couldn't open the shared file.");
-        using FileStream output = new(path, FileMode.CreateNew, FileAccess.Write);
-        input.CopyTo(output);
-        return path;
-    }
-
-    private static string? QueryDisplayName(ContentResolver resolver, AUri uri)
-    {
-        try
-        {
-            using var cursor = resolver.Query(uri, [DocumentsContract.Document.ColumnDisplayName], null, null, null);
-            return cursor is not null && cursor.MoveToFirst() ? cursor.GetString(0) : null;
-        }
-        catch (Java.Lang.Exception)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>A plain file name that can't point outside the target folder.</summary>
-    private static string SafeFileName(string? name)
-    {
-        name = Path.GetFileName(name ?? string.Empty);
-        foreach (char c in Path.GetInvalidFileNameChars())
-        {
-            name = name.Replace(c, '_');
-        }
-        return string.IsNullOrWhiteSpace(name) || name is "." or ".." ? "shared file" : name;
     }
 }

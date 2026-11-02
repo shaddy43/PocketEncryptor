@@ -38,6 +38,31 @@ Getting files into the app without the picker:
   another app → Choose an app on your PC**, pick `PocketEncryptor.App.exe` and
   tick **Always**. Each "Open with" starts its own window for now.
 
+### Delete originals after encrypting
+
+Tick this (Encrypt mode, Windows and Android) to replace your files with their
+encrypted versions. It asks for confirmation every time, and for each file:
+
+1. The encrypted file is saved: next to the original on Windows; in a folder
+   you choose on Android.
+2. It's read back and fully decrypted with your password as a check. If that
+   fails, it's removed and the original is kept.
+3. Only then is the original overwritten with random data and deleted, along
+   with any private copy the app made of it.
+
+Some originals can't be deleted by the app, and are kept and listed: files
+shared to it from another app, read-only files, and files stored where the
+owning app doesn't allow deleting (Android). Gallery photos are better
+encrypted through the Files app, since gallery apps keep their own trash and
+cloud copies.
+
+Overwriting before deleting defeats undelete tools and helps on hard disks,
+but no app can guarantee that nothing survives: SSDs and phone storage write
+changes to fresh cells, some file systems (APFS, f2fs) keep old blocks, and
+backups, cloud sync, snapshots, the Recycle Bin and thumbnail caches hold
+copies of their own. Turn on full-disk encryption (BitLocker, FileVault;
+phones have it built in) so that whatever does remain is unreadable.
+
 ## CLI
 
 ### Usage
@@ -81,6 +106,10 @@ Getting files into the app without the picker:
   in shell history, or in `ps` output.
 - Files from the previous release (format v1) still decrypt. New files are
   always written as v2.
+- Keys, password bytes and plaintext buffers are kept in pinned memory (never
+  moved or copied by the .NET garbage collector) and zeroed as soon as they're
+  done with. The password text itself can't be wiped: .NET strings are
+  immutable, and the OS text box holds its own copy.
 
 ## File format (v2)
 

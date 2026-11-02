@@ -117,6 +117,26 @@
                 <Label x:Name="PasswordHintLabel" FontSize="13" IsVisible="False" />
             </VerticalStackLayout>
 
+            <!-- Destructive option: encrypt mode, on platforms where the app can delete originals -->
+            <VerticalStackLayout x:Name="ReplacePanel" Spacing="4">
+                <HorizontalStackLayout Spacing="2">
+                    <CheckBox x:Name="ReplaceCheckBox"
+                              VerticalOptions="Center"
+                              Color="{AppThemeBinding Light={StaticResource ErrorLight}, Dark={StaticResource ErrorDark}}"
+                              SemanticProperties.Description="Delete originals after encrypting"
+                              CheckedChanged="OnReplaceChanged" />
+                    <Label Text="Delete originals after encrypting" VerticalOptions="Center">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnReplaceLabelTapped" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                </HorizontalStackLayout>
+                <Label x:Name="ReplaceWarningLabel"
+                       IsVisible="False"
+                       FontSize="13"
+                       TextColor="{AppThemeBinding Light={StaticResource ErrorLight}, Dark={StaticResource ErrorDark}}" />
+            </VerticalStackLayout>
+
             <!-- Action -->
             <Button x:Name="RunButton"
                     Text="Encrypt file"

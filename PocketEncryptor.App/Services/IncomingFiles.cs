@@ -1,4 +1,4 @@
-namespace PocketEncryptor.App.Services;
+﻿namespace PocketEncryptor.App.Services;
 
 /// <summary>A status line about incoming files.</summary>
 internal sealed record IncomingNotice(string Text, bool IsError);
@@ -10,7 +10,7 @@ internal sealed record IncomingNotice(string Text, bool IsError);
 /// </summary>
 internal static class IncomingFiles
 {
-    private static IReadOnlyList<FileResult>? s_pending;
+    private static IReadOnlyList<PickedFile>? s_pending;
     private static IncomingNotice? s_notice;
 
     /// <summary>Raised on the main thread when files or a notice arrive.</summary>
@@ -23,7 +23,7 @@ internal static class IncomingFiles
     public static void Failed(string message) => Post(() => s_notice = new IncomingNotice(message, IsError: true));
 
     /// <param name="problem">Shown as an error alongside the files, e.g. some couldn't be read.</param>
-    public static void Deliver(IReadOnlyList<FileResult> files, string? problem = null)
+    public static void Deliver(IReadOnlyList<PickedFile> files, string? problem = null)
     {
         if (files.Count == 0)
         {
@@ -32,9 +32,9 @@ internal static class IncomingFiles
         Post(() =>
         {
             // Files nobody took yet are replaced; drop their private copies.
-            foreach (FileResult old in s_pending ?? [])
+            foreach (PickedFile old in s_pending ?? [])
             {
-                WorkingFiles.DeletePickerCopy(old);
+                WorkingFiles.DeletePickerCopy(old.File);
             }
             s_pending = files;
             s_notice = problem is null ? null : new IncomingNotice(problem, IsError: true);
@@ -42,7 +42,7 @@ internal static class IncomingFiles
     }
 
     /// <summary>Takes the files waiting to be loaded, if any.</summary>
-    public static IReadOnlyList<FileResult>? TakeFiles() => Interlocked.Exchange(ref s_pending, null);
+    public static IReadOnlyList<PickedFile>? TakeFiles() => Interlocked.Exchange(ref s_pending, null);
 
     /// <summary>Takes the latest notice, if any.</summary>
     public static IncomingNotice? TakeNotice() => Interlocked.Exchange(ref s_notice, null);

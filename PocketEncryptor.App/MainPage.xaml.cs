@@ -73,8 +73,61 @@ public partial class MainPage : ContentPage
         StyleSegment(DecryptModeButton, selected: !encrypt);
         ConfirmEntry.IsVisible = encrypt;
         PasswordEntry.ReturnType = encrypt ? ReturnType.Next : ReturnType.Done;
+        ReplacePanel.IsVisible = encrypt && CanRemoveOriginals;
+        if (!encrypt)
+        {
+            ReplaceCheckBox.IsChecked = false;
+        }
         RefreshFileStatuses();
         UpdateState();
+    }
+
+    // ------------------------------------------------------------------
+    // Delete originals after encrypting
+    // ------------------------------------------------------------------
+
+    /// <summary>Platforms where the app gets to delete originals (iOS/macOS: still to come).</summary>
+#if WINDOWS || ANDROID
+    private const bool CanRemoveOriginals = true;
+#else
+    private const bool CanRemoveOriginals = false;
+#endif
+
+    private bool RemoveOriginals => _mode == Mode.Encrypt && ReplaceCheckBox.IsChecked;
+
+    private void OnReplaceLabelTapped(object? sender, TappedEventArgs e) =>
+        ReplaceCheckBox.IsChecked = !ReplaceCheckBox.IsChecked;
+
+    private void OnReplaceChanged(object? sender, CheckedChangedEventArgs e)
+    {
+        ReplaceWarningLabel.IsVisible = e.Value;
+        ReplaceWarningLabel.Text = OperatingSystem.IsWindows()
+            ? "Each encrypted file is saved next to its original and checked, then the original is overwritten and deleted. Only your password can bring it back."
+            : "Each encrypted file is saved where you choose and checked, then the original is overwritten and deleted. Only your password can bring it back.";
+        UpdateState();
+    }
+
+    /// <summary>Asks before a run that deletes originals. False: don't run.</summary>
+    private async Task<bool> ConfirmRemovingOriginalsAsync(List<SelectedFile> targets)
+    {
+        int removable = targets.Count(f => f.Original is { WhyNotRemovable: null });
+        if (removable == 0)
+        {
+            ShowStatus(StatusKind.Info, (targets.Count == 1 ? "The app can't delete this original" : "The app can't delete these originals")
+                + " (shared from another app, read-only, or stored where deleting isn't allowed). "
+                + "Untick \"Delete originals after encrypting\" to just encrypt.");
+            return false;
+        }
+
+        string which = removable == targets.Count
+            ? removable switch { 1 => "the original", 2 => "both originals", _ => $"all {removable} originals" }
+            : $"{removable} of the {targets.Count} originals (the rest can't be deleted here and will be kept)";
+        string message =
+            $"Once each encrypted copy is saved and checked, {which} will be overwritten and deleted. "
+            + "Without the password, they can't be recovered.\n\n"
+            + "Copies elsewhere aren't touched: backups, cloud sync, the Recycle Bin or trash, and traces that SSDs and "
+            + "phones keep internally. Full-disk encryption is what protects those.";
+        return await DisplayAlertAsync("Delete the originals?", message, "Encrypt and delete", "Cancel");
     }
 
     private static void StyleSegment(Button button, bool selected)
@@ -108,7 +161,7 @@ public partial class MainPage : ContentPage
 
     private async void OnPickFileClicked(object? sender, EventArgs e)
     {
-        IReadOnlyList<FileResult> picked;
+        IReadOnlyList<PickedFile> picked;
         try
         {
             picked = await InputPicker.PickFilesAsync();
@@ -125,21 +178,21 @@ public partial class MainPage : ContentPage
     }
 
     /// <summary>Replaces the selection with these files (picked, shared, opened or dropped).</summary>
-    private async Task LoadFilesAsync(IReadOnlyList<FileResult> files)
+    private async Task LoadFilesAsync(IReadOnlyList<PickedFile> files)
     {
         var loaded = new List<SelectedFile>(files.Count);
         try
         {
-            foreach (FileResult file in files)
+            foreach (PickedFile file in files)
             {
                 loaded.Add(await SelectedFile.LoadAsync(file));
             }
         }
         catch (Exception ex)
         {
-            foreach (FileResult file in files)
+            foreach (PickedFile file in files)
             {
-                WorkingFiles.DeletePickerCopy(file);
+                WorkingFiles.DeletePickerCopy(file.File);
             }
             ShowStatus(StatusKind.Error, "Couldn't open that file: " + Describe(ex));
             return;
@@ -169,7 +222,7 @@ public partial class MainPage : ContentPage
         {
             return;
         }
-        IReadOnlyList<FileResult>? files = IncomingFiles.TakeFiles();
+        IReadOnlyList<PickedFile>? files = IncomingFiles.TakeFiles();
         IncomingNotice? notice = IncomingFiles.TakeNotice();
         if (files is not null)
         {
@@ -219,9 +272,9 @@ public partial class MainPage : ContentPage
         e.Handled = true;
 
         var items = await data.GetStorageItemsAsync();
-        List<FileResult> files = [.. items.OfType<global::Windows.Storage.StorageFile>()
+        List<PickedFile> files = [.. items.OfType<global::Windows.Storage.StorageFile>()
             .Where(f => !string.IsNullOrEmpty(f.Path))
-            .Select(f => new FileResult(f.Path))];
+            .Select(f => PickedFile.FromPath(f.Path))];
         bool hadFolders = items.Any(i => i is global::Windows.Storage.IStorageFolder);
 
         if (files.Count > 0)
@@ -241,11 +294,11 @@ public partial class MainPage : ContentPage
         string.IsNullOrWhiteSpace(ex.Message) ? $"{ex.GetType().Name} (0x{ex.HResult:X8})" : ex.Message;
 
     /// <summary>Forgets the chosen files, deleting any private copies the picker made.</summary>
-    private void ClearFiles(IReadOnlyCollection<FileResult>? keep = null)
+    private void ClearFiles(IReadOnlyCollection<PickedFile>? keep = null)
     {
         foreach (SelectedFile file in _files)
         {
-            if (keep is null || !keep.Any(k => k.FullPath == file.Source.FullPath))
+            if (keep is null || !keep.Any(k => k.File.FullPath == file.Source.FullPath))
             {
                 WorkingFiles.DeletePickerCopy(file.Source);
             }
@@ -369,9 +422,19 @@ public partial class MainPage : ContentPage
 
         int runnable = RunnableFiles().Count;
         string verb = _mode == Mode.Encrypt ? "Encrypt" : "Decrypt";
-        RunButton.Text = runnable <= 1 ? $"{verb} file" : $"{verb} {runnable} files";
+        if (RemoveOriginals)
+        {
+            RunButton.Text = runnable <= 1 ? "Encrypt, delete original" : $"Encrypt {runnable}, delete originals";
+            RunButton.SetAppThemeColor(BackgroundColorProperty, Res("ErrorLight"), Res("ErrorDark"));
+        }
+        else
+        {
+            RunButton.Text = runnable <= 1 ? $"{verb} file" : $"{verb} {runnable} files";
+            RunButton.ClearValue(BackgroundColorProperty); // back to the style's color
+        }
 
         RunButton.IsEnabled = !_busy && runnable > 0 && passwordOk;
+        ReplaceCheckBox.IsEnabled = !_busy;
         PickFileButton.IsEnabled = !_busy && PocketCrypto.IsSupported;
         EncryptModeButton.IsEnabled = !_busy;
         DecryptModeButton.IsEnabled = !_busy;
@@ -402,6 +465,12 @@ public partial class MainPage : ContentPage
         }
 
         Mode mode = _mode;
+        bool removeOriginals = RemoveOriginals;
+        if (removeOriginals && !await ConfirmRemovingOriginalsAsync(targets))
+        {
+            return;
+        }
+
         string password = PasswordEntry.Text ?? string.Empty;
         using var cts = new CancellationTokenSource();
         _cts = cts;
@@ -409,9 +478,9 @@ public partial class MainPage : ContentPage
         SetBusy(true, mode == Mode.Encrypt ? "Encrypting…" : "Decrypting…");
         try
         {
-            if (IsBatch)
+            if (IsBatch || removeOriginals)
             {
-                await RunBatchAsync(targets, mode, password, cts.Token);
+                await RunBatchAsync(targets, mode, password, removeOriginals, cts.Token);
             }
             else
             {
@@ -421,6 +490,10 @@ public partial class MainPage : ContentPage
         finally
         {
             _cts = null;
+            if (removeOriginals)
+            {
+                ReplaceCheckBox.IsChecked = false; // destructive runs are opt-in every time
+            }
             SetBusy(false);
         }
         ProcessIncoming(); // anything shared while busy
@@ -477,37 +550,49 @@ public partial class MainPage : ContentPage
     }
 
     /// <summary>
-    /// Several files: ask for a folder once, then process and save each file in
-    /// turn. One file failing (e.g. a different password) doesn't stop the rest.
+    /// Several files (or deleting originals): ask for a folder once, then
+    /// process and save each file in turn. One file failing (e.g. a different
+    /// password) doesn't stop the rest.
     /// </summary>
-    private async Task RunBatchAsync(List<SelectedFile> targets, Mode mode, string password, CancellationToken ct)
+    /// <param name="removeOriginals">
+    /// After each encrypted file is saved, read it back and check it decrypts,
+    /// then overwrite and delete the original. On Windows the encrypted file
+    /// goes right next to the original, so no folder is asked for.
+    /// </param>
+    private async Task RunBatchAsync(List<SelectedFile> targets, Mode mode, string password, bool removeOriginals,
+        CancellationToken ct)
     {
-        BusyLabel.Text = "Choose a folder for the results…";
-        IOutputFolder? folder;
-        try
+        IOutputFolder? NextToOriginal(SelectedFile f) => removeOriginals ? OutputSaver.FolderOfOriginal(f.Original) : null;
+
+        IOutputFolder? chosen = null;
+        if (targets.Any(f => NextToOriginal(f) is null))
         {
-            folder = await OutputSaver.PickFolderAsync(ct);
-        }
-        catch (OperationCanceledException)
-        {
-            ShowStatus(StatusKind.Info, "Cancelled.");
-            return;
-        }
-        catch (Exception ex)
-        {
-            ShowStatus(StatusKind.Error, ex is SaveRefusedException ? ex.Message : "Can't use that folder: " + ex.Message);
-            return;
-        }
-        if (folder is null)
-        {
-            ShowStatus(StatusKind.Info, "No folder chosen, so nothing was saved.");
-            return;
+            BusyLabel.Text = removeOriginals ? "Choose where to save the encrypted files…" : "Choose a folder for the results…";
+            try
+            {
+                chosen = await OutputSaver.PickFolderAsync(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                ShowStatus(StatusKind.Info, "Cancelled.");
+                return;
+            }
+            catch (Exception ex)
+            {
+                ShowStatus(StatusKind.Error, ex is SaveRefusedException ? ex.Message : "Can't use that folder: " + ex.Message);
+                return;
+            }
+            if (chosen is null)
+            {
+                ShowStatus(StatusKind.Info, "No folder chosen, so nothing was saved.");
+                return;
+            }
         }
 
         string verb = mode == Mode.Encrypt ? "Encrypting" : "Decrypting";
         long total = targets.Sum(f => Math.Max(0, f.Size));
         long finished = 0;
-        int saved = 0, failed = 0, notSaved = 0;
+        int savedCount = 0, failed = 0, notSaved = 0, removed = 0, kept = 0;
         bool cancelled = false;
 
         for (int i = 0; i < targets.Count && !cancelled; i++)
@@ -520,18 +605,61 @@ public partial class MainPage : ContentPage
             try
             {
                 tempPath = await ProcessToTempAsync(file, mode, password, done => SetProgress(before + done, total), ct);
-                string? savedAs = await folder.SaveAsync(tempPath, OutputName(file.Name, mode), ct);
-                if (savedAs is null)
+                IOutputFolder folder = NextToOriginal(file) ?? chosen!;
+                SavedOutput? saved = await folder.SaveAsync(tempPath, OutputName(file.Name, mode), ct);
+                if (saved is null)
                 {
                     file.Update(FileState.Pending, "Not saved");
                     notSaved++;
+                    continue;
+                }
+                savedCount++;
+
+                if (!removeOriginals)
+                {
+                    file.Update(FileState.Done, "Saved as " + saved.Name);
+                    WorkingFiles.DeletePickerCopy(file.Source);
+                    continue;
+                }
+
+                string? whyKept = file.Original is null ? "it was shared from another app" : file.Original.WhyNotRemovable;
+                if (whyKept is null)
+                {
+                    // Never delete an original unless its encrypted copy, as saved,
+                    // decrypts with this password.
+                    BusyLabel.Text = $"Checking {saved.Name}…";
+                    if (!await SavedCopyDecryptsAsync(saved, password, ct))
+                    {
+                        saved.Delete();
+                        savedCount--;
+                        file.Update(FileState.Failed, "The saved copy didn't check out, so it was removed and the original kept");
+                        failed++;
+                        continue;
+                    }
+
+                    ct.ThrowIfCancellationRequested(); // last point to stop before deleting
+                    BusyLabel.Text = $"Deleting the original of {file.Name}…";
+                    try
+                    {
+                        await file.Original!.RemoveAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        whyKept = "couldn't delete it: " + Describe(ex);
+                    }
+                }
+
+                if (whyKept is null)
+                {
+                    file.Update(FileState.Done, $"Replaced by {saved.Name}");
+                    removed++;
                 }
                 else
                 {
-                    file.Update(FileState.Done, "Saved as " + savedAs);
-                    saved++;
-                    WorkingFiles.DeletePickerCopy(file.Source);
+                    file.Update(FileState.Done, $"Saved as {saved.Name}; original kept: {whyKept}");
+                    kept++;
                 }
+                WorkingFiles.DeletePickerCopy(file.Source, overwrite: true);
             }
             catch (OperationCanceledException)
             {
@@ -545,7 +673,7 @@ public partial class MainPage : ContentPage
             }
             catch (Exception ex)
             {
-                file.Update(FileState.Failed, ex.Message);
+                file.Update(FileState.Failed, Describe(ex));
                 failed++;
             }
             finally
@@ -556,10 +684,18 @@ public partial class MainPage : ContentPage
         }
 
         string past = mode == Mode.Encrypt ? "Encrypted" : "Decrypted";
-        string message = $"{past} {saved} of {targets.Count} files.";
-        if (saved > 0)
+        string message = $"{past} {savedCount} of {targets.Count} " + (targets.Count == 1 ? "file." : "files.");
+        if (savedCount > 0)
         {
-            message += $"\nSaved to: {folder.DisplayName}";
+            message += chosen is null ? "\nSaved next to the originals." : $"\nSaved to: {chosen.DisplayName}";
+        }
+        if (removed > 0)
+        {
+            message += removed == 1 ? "\nThe original was deleted." : $"\n{removed} originals were deleted.";
+        }
+        if (kept > 0)
+        {
+            message += $"\n{kept} " + (kept == 1 ? "original was" : "originals were") + " kept: see the list above.";
         }
         if (failed > 0)
         {
@@ -574,11 +710,30 @@ public partial class MainPage : ContentPage
             message += "\nCancelled before the rest were done.";
         }
 
-        bool allSaved = saved == targets.Count;
-        ShowStatus(failed > 0 ? StatusKind.Error : allSaved ? StatusKind.Success : StatusKind.Info, message);
+        bool allSaved = savedCount == targets.Count;
+        ShowStatus(failed > 0 ? StatusKind.Error : allSaved && kept == 0 ? StatusKind.Success : StatusKind.Info, message);
         if (allSaved)
         {
             ClearPasswords();
+        }
+    }
+
+    /// <summary>Reads a saved encrypted file back and checks that it fully decrypts.</summary>
+    private static async Task<bool> SavedCopyDecryptsAsync(SavedOutput saved, string password, CancellationToken ct)
+    {
+        try
+        {
+            await Task.Run(() =>
+            {
+                using Stream stream = saved.OpenRead();
+                PocketCrypto.Decrypt(stream, Stream.Null, password, cancellationToken: ct);
+            }, ct);
+            return true;
+        }
+        catch (Exception ex) when (ex is CryptographicException or InvalidDataException or IOException
+            or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 

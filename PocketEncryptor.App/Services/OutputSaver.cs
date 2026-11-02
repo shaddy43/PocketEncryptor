@@ -3,6 +3,12 @@ namespace PocketEncryptor.App.Services;
 /// <summary>The save was refused for the user's protection; the message says why.</summary>
 internal sealed class SaveRefusedException(string message) : Exception(message);
 
+/// <summary>A result saved into an output folder.</summary>
+/// <param name="Name">The name it was saved under.</param>
+/// <param name="OpenRead">Reads the saved file back (to check it before deleting an original).</param>
+/// <param name="Delete">Removes it again, e.g. if that check fails.</param>
+internal sealed record SavedOutput(string Name, Func<Stream> OpenRead, Action Delete);
+
 /// <summary>A folder the user chose for a batch of results.</summary>
 internal interface IOutputFolder
 {
@@ -13,8 +19,8 @@ internal interface IOutputFolder
     /// Saves a finished result into the folder. Never replaces an existing file:
     /// if <paramref name="fileName"/> is taken, a numbered name is used.
     /// </summary>
-    /// <returns>The name it was saved under, or null if the user skipped it.</returns>
-    Task<string?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken);
+    /// <returns>The saved file, or null if the user skipped it.</returns>
+    Task<SavedOutput?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -69,6 +75,20 @@ internal static class OutputSaver
 #endif
     }
 
+    /// <summary>
+    /// Where "Delete originals after encrypting" can put the encrypted file
+    /// right next to the original without asking: on Windows, the original's
+    /// own folder. Null elsewhere (the user chooses a folder instead).
+    /// </summary>
+    public static IOutputFolder? FolderOfOriginal(IOriginalFile? original)
+    {
+#if WINDOWS
+        return original is PathOriginal path ? new WinUI.WindowsOutputFolder(Path.GetDirectoryName(path.FullPath)!) : null;
+#else
+        return null;
+#endif
+    }
+
 #if !WINDOWS && !ANDROID
     /// <summary>
     /// iOS and macOS for now: one Save dialog per file. A real folder picker there
@@ -78,10 +98,10 @@ internal static class OutputSaver
     {
         public string DisplayName => "the locations you chose";
 
-        public async Task<string?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken)
+        public async Task<SavedOutput?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken)
         {
             string? saved = await OutputSaver.SaveAsync(tempPath, fileName, sourcePath: null, cancellationToken);
-            return saved is null ? null : Path.GetFileName(saved);
+            return saved is null ? null : new SavedOutput(Path.GetFileName(saved), () => File.OpenRead(saved), () => File.Delete(saved));
         }
     }
 #endif

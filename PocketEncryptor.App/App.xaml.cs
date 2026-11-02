@@ -14,9 +14,9 @@ public partial class App : Application
 #if WINDOWS
 		// "Open with", double-clicking an associated .pkec file and "Send to"
 		// start the app with the files as arguments.
-		List<FileResult> files = [.. Environment.GetCommandLineArgs().Skip(1)
+		List<PickedFile> files = [.. Environment.GetCommandLineArgs().Skip(1)
 			.Where(File.Exists)
-			.Select(path => new FileResult(Path.GetFullPath(path)))];
+			.Select(path => PickedFile.FromPath(Path.GetFullPath(path)))];
 		IncomingFiles.Deliver(files);
 #endif
 	}
