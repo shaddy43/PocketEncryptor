@@ -23,6 +23,25 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
+#if ANDROID
+        // Status bar icons must flip with the theme: dark on the light page, light on the Vault black.
+        // Re-applied on every theme change: the behavior only pushes values to Android when they're set.
+        var statusBar = new CommunityToolkit.Maui.Behaviors.StatusBarBehavior();
+        void ApplyStatusBar()
+        {
+            bool dark = Application.Current?.RequestedTheme == AppTheme.Dark;
+            statusBar.StatusBarColor = Res(dark ? "OffBlack" : "PageLight");
+            statusBar.StatusBarStyle = dark
+                ? CommunityToolkit.Maui.Core.StatusBarStyle.LightContent
+                : CommunityToolkit.Maui.Core.StatusBarStyle.DarkContent;
+        }
+        ApplyStatusBar();
+        Behaviors.Add(statusBar);
+        if (Application.Current is { } app)
+        {
+            app.RequestedThemeChanged += (_, _) => ApplyStatusBar();
+        }
+#endif
         BindableLayout.SetItemsSource(FileList, _files);
         ApplyMode();
         ShowFiles();
@@ -91,12 +110,7 @@ public partial class MainPage : ContentPage
     private void OnReplaceLabelTapped(object? sender, TappedEventArgs e) =>
         ReplaceCheckBox.IsChecked = !ReplaceCheckBox.IsChecked;
 
-    private void OnReplaceChanged(object? sender, CheckedChangedEventArgs e)
-    {
-        ReplaceWarningLabel.IsVisible = e.Value;
-        ReplaceWarningLabel.Text = "Encryption over-writes the originals. Only password can recover files.";
-        UpdateState();
-    }
+    private void OnReplaceChanged(object? sender, CheckedChangedEventArgs e) => UpdateState();
 
     /// <summary>Asks before a run that deletes originals. False: don't run.</summary>
     private async Task<bool> ConfirmRemovingOriginalsAsync(List<SelectedFile> targets)
@@ -162,12 +176,34 @@ public partial class MainPage : ContentPage
         }
         if (picked.Count > 0)
         {
-            await LoadFilesAsync(picked);
+            // With files already chosen, the button is "Add files" and picks more.
+            await LoadFilesAsync(picked, append: _files.Count > 0);
         }
     }
 
-    /// <summary>Replaces the selection with these files (picked, shared, opened or dropped).</summary>
-    private async Task LoadFilesAsync(IReadOnlyList<PickedFile> files)
+    private void OnRemoveFileClicked(object? sender, EventArgs e)
+    {
+        if (_busy || (sender as BindableObject)?.BindingContext is not SelectedFile file)
+        {
+            return;
+        }
+        WorkingFiles.Release(file.Source, file.Original);
+        _files.Remove(file);
+        HideStatus();
+        if (_files.Count > 0 && _files.All(f => f.State != FileState.Done))
+        {
+            SetMode(_files.All(f => f.IsEncrypted) ? Mode.Decrypt : Mode.Encrypt);
+        }
+        RefreshFileStatuses();
+        ShowFiles();
+        UpdateState();
+    }
+
+    /// <summary>
+    /// Replaces the selection with these files (picked, shared, opened or dropped),
+    /// or with <paramref name="append"/> adds them to it, leaving out files already chosen.
+    /// </summary>
+    private async Task LoadFilesAsync(IReadOnlyList<PickedFile> files, bool append = false)
     {
         var loaded = new List<SelectedFile>(files.Count);
         try
@@ -187,7 +223,33 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        ClearFiles(keep: files);
+        if (append)
+        {
+            foreach (SelectedFile file in loaded.ToList())
+            {
+                SelectedFile? same = _files.FirstOrDefault(f => f.Source.FullPath == file.Source.FullPath)
+                    ?? _files.FirstOrDefault(f => f.Name == file.Name && f.Size == file.Size);
+                if (same is null)
+                {
+                    continue;
+                }
+                // Already chosen. A picker copy at a new path can go; the same path is still in use.
+                if (same.Source.FullPath == file.Source.FullPath)
+                {
+                    (file.Original as IDisposable)?.Dispose();
+                }
+                else
+                {
+                    WorkingFiles.Release(file.Source, file.Original);
+                }
+                loaded.Remove(file);
+            }
+        }
+        else
+        {
+            ClearFiles(keep: files);
+        }
+
         foreach (SelectedFile file in loaded)
         {
             _files.Add(file);
@@ -195,7 +257,11 @@ public partial class MainPage : ContentPage
         HideStatus();
 
         // Pick the obvious mode: encrypted files get decrypted, anything else encrypted.
-        SetMode(loaded.All(f => f.IsEncrypted) ? Mode.Decrypt : Mode.Encrypt);
+        IEnumerable<SelectedFile> considered = append ? _files.Where(f => f.State != FileState.Done) : loaded;
+        if (considered.Any())
+        {
+            SetMode(considered.All(f => f.IsEncrypted) ? Mode.Decrypt : Mode.Encrypt);
+        }
         RefreshFileStatuses();
         ShowFiles();
         UpdateState();
@@ -320,7 +386,9 @@ public partial class MainPage : ContentPage
     private void ShowFiles()
     {
         int count = _files.Count;
-        FileList.IsVisible = count > 1;
+        FileList.IsVisible = count > 0;
+        PickFileButton.Text = count > 0 ? "Add files" : "Choose files";
+        SemanticProperties.SetHint(PickFileButton, count > 0 ? "Adds more files to the list" : null);
 
         if (count == 0)
         {
@@ -328,19 +396,13 @@ public partial class MainPage : ContentPage
             FileInfoLabel.Text = "Pick files to encrypt, or .pkec files to decrypt.";
             return;
         }
-        if (count == 1)
-        {
-            FileNameLabel.Text = _files[0].Name;
-            FileInfoLabel.Text = _files[0].IsEncrypted ? "Encrypted file: enter its password to decrypt." : "Ready to encrypt.";
-            return;
-        }
 
         int encrypted = _files.Count(f => f.IsEncrypted);
         string size = SelectedFile.FormatSize(_files.Sum(f => Math.Max(0, f.Size)));
-        FileNameLabel.Text = $"{count} files";
+        FileNameLabel.Text = count == 1 ? "1 file" : $"{count} files";
         FileInfoLabel.Text =
-            encrypted == 0 ? $"{size} in total. Ready to encrypt."
-            : encrypted == count ? $"Encrypted files, {size} in total: enter their password to decrypt."
+            encrypted == 0 ? $"{size} · will be encrypted"
+            : encrypted == count ? $"{size} · encrypted: enter the password to decrypt"
             : $"{encrypted} encrypted, {count - encrypted} not. Each mode skips the files it doesn't apply to.";
     }
 
@@ -383,20 +445,74 @@ public partial class MainPage : ContentPage
 
     private void OnConfirmCompleted(object? sender, EventArgs e) => TryRun();
 
-    private void OnShowPasswordChanged(object? sender, CheckedChangedEventArgs e)
-    {
-        PasswordEntry.IsPassword = !e.Value;
-        ConfirmEntry.IsPassword = !e.Value;
-    }
+    private void OnShowPasswordClicked(object? sender, EventArgs e) => SetPasswordsVisible(PasswordEntry.IsPassword);
 
-    private void OnShowPasswordLabelTapped(object? sender, TappedEventArgs e) =>
-        ShowPasswordCheckBox.IsChecked = !ShowPasswordCheckBox.IsChecked;
+    private void SetPasswordsVisible(bool visible)
+    {
+        PasswordEntry.IsPassword = !visible;
+        ConfirmEntry.IsPassword = !visible;
+        ShowPasswordButton.Text = visible ? "Hide" : "Show";
+        SemanticProperties.SetDescription(ShowPasswordButton, visible ? "Hide password" : "Show password");
+    }
 
     private void ClearPasswords()
     {
         PasswordEntry.Text = string.Empty;
         ConfirmEntry.Text = string.Empty;
-        ShowPasswordCheckBox.IsChecked = false;
+        SetPasswordsVisible(false);
+    }
+
+    /// <summary>
+    /// A rough guide (0-4) from length and character variety. Says nothing about
+    /// dictionary words, so it's shown as a hint, never as a guarantee.
+    /// </summary>
+    private static int PasswordStrength(string password)
+    {
+        if (password.Length == 0)
+        {
+            return 0;
+        }
+        int kinds = (password.Any(char.IsLower) ? 1 : 0) + (password.Any(char.IsUpper) ? 1 : 0)
+            + (password.Any(char.IsDigit) ? 1 : 0) + (password.Any(c => !char.IsLetterOrDigit(c)) ? 1 : 0);
+        return password.Length switch
+        {
+            < RecommendedPasswordLength => 1,
+            < 12 => kinds >= 3 ? 3 : 2,
+            < 16 => kinds >= 2 ? 3 : 2,
+            _ => kinds >= 2 ? 4 : 3,
+        };
+    }
+
+    private void ShowStrength(string password)
+    {
+        int score = PasswordStrength(password);
+        StrengthPanel.IsVisible = _mode == Mode.Encrypt && score > 0;
+        if (!StrengthPanel.IsVisible)
+        {
+            return;
+        }
+        (string text, string light, string dark) = score switch
+        {
+            1 => ("Weak", "ErrorLight", "ErrorDark"),
+            2 => ("Fair", "MutedLight", "MutedDark"),
+            3 => ("Strong", "Primary", "PrimaryDark"),
+            _ => ("Very strong", "Primary", "PrimaryDark"),
+        };
+        BoxView[] bars = [Strength1, Strength2, Strength3, Strength4];
+        for (int i = 0; i < bars.Length; i++)
+        {
+            if (i < score)
+            {
+                bars[i].SetAppThemeColor(BoxView.ColorProperty, Res(light), Res(dark));
+            }
+            else
+            {
+                bars[i].SetAppThemeColor(BoxView.ColorProperty, Res("BorderLight"), Res("BorderDark"));
+            }
+        }
+        StrengthLabel.Text = text;
+        StrengthLabel.SetAppThemeColor(Label.TextColorProperty, Res(light), Res(dark));
+        SemanticProperties.SetDescription(StrengthPanel, "Password strength: " + text);
     }
 
     // Enables the Run button only when the input is complete, and explains why not.
@@ -406,28 +522,32 @@ public partial class MainPage : ContentPage
         string confirm = ConfirmEntry.Text ?? string.Empty;
 
         string? hint = null;
-        bool hintIsError = false;
+        (string light, string dark) hintColor = ("MutedLight", "MutedDark");
         bool passwordOk = password.Length > 0;
 
+        ShowStrength(password);
         if (_mode == Mode.Encrypt && password.Length > 0)
         {
             if (confirm.Length > 0 && confirm != password)
             {
                 hint = "Passwords don't match.";
-                hintIsError = true;
+                hintColor = ("ErrorLight", "ErrorDark");
             }
             else if (password.Length < RecommendedPasswordLength)
             {
                 hint = $"Tip: use at least {RecommendedPasswordLength} characters. Longer passwords are much harder to guess.";
+            }
+            else if (confirm == password)
+            {
+                hint = "✓ Passwords match.";
+                hintColor = ("Primary", "PrimaryDark");
             }
             passwordOk = confirm == password;
         }
 
         PasswordHintLabel.IsVisible = hint is not null;
         PasswordHintLabel.Text = hint;
-        PasswordHintLabel.SetAppThemeColor(Label.TextColorProperty,
-            hintIsError ? Res("ErrorLight") : Res("Gray500"),
-            hintIsError ? Res("ErrorDark") : Res("Gray400"));
+        PasswordHintLabel.SetAppThemeColor(Label.TextColorProperty, Res(hintColor.light), Res(hintColor.dark));
 
         int runnable = RunnableFiles().Count;
         string verb = _mode == Mode.Encrypt ? "Encrypt" : "Decrypt";
@@ -805,9 +925,9 @@ public partial class MainPage : ContentPage
         StatusLabel.Text = message;
         (string bgLight, string bgDark, string fgLight, string fgDark) = kind switch
         {
-            StatusKind.Success => ("Secondary", "Tertiary", "MidnightBlue", "White"),
+            StatusKind.Success => ("Secondary", "Tertiary", "MidnightBlue", "DarkText"),
             StatusKind.Error => ("ErrorBackgroundLight", "ErrorBackgroundDark", "ErrorLight", "ErrorDark"),
-            _ => ("Gray100", "Gray900", "Gray900", "Gray100"),
+            _ => ("Gray100", "SurfaceDark", "MidnightBlue", "DarkText"),
         };
         StatusBorder.SetAppThemeColor(BackgroundColorProperty, Res(bgLight), Res(bgDark));
         StatusLabel.SetAppThemeColor(Label.TextColorProperty, Res(fgLight), Res(fgDark));

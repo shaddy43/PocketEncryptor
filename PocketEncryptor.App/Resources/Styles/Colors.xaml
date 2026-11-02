@@ -1,27 +1,46 @@
 ﻿<?xml version="1.0" encoding="UTF-8" ?>
-<ResourceDictionary 
+<ResourceDictionary
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
 
-    <!-- Note: For Android please see also Platforms\Android\Resources\values\colors.xml -->
+    <!-- Light mode = teal; dark mode = "Vault": black, gold and cream.
+         Each AppThemeBinding pairs a light key with its dark counterpart below.
+         For Android please see also Platforms\Android\Resources\values\colors.xml -->
 
-    <Color x:Key="Primary">#1F5F57</Color>
-    <Color x:Key="PrimaryDark">#7CC4B8</Color>
-    <Color x:Key="PrimaryDarkText">#0E2421</Color>
-    <Color x:Key="Secondary">#DCEFEB</Color>
-    <Color x:Key="SecondaryDarkText">#5FAE9F</Color>
-    <Color x:Key="Tertiary">#134A43</Color>
-
+    <!-- Light -->
+    <Color x:Key="Primary">#1F5F57</Color>              <!-- teal: buttons, accents (white text 7.5:1) -->
+    <Color x:Key="Secondary">#DCEFEB</Color>            <!-- pale teal: unselected segment, success box -->
+    <Color x:Key="PageLight">#F4F7F6</Color>            <!-- page ground -->
+    <Color x:Key="SurfaceLight">#FFFFFF</Color>         <!-- cards -->
+    <Color x:Key="ChipLight">#F4F7F6</Color>            <!-- file rows inside cards -->
+    <Color x:Key="BorderLight">#C9D6D3</Color>
+    <Color x:Key="MutedLight">#3F5552</Color>           <!-- secondary text (8.4:1 on white) -->
+    <Color x:Key="MidnightBlue">#0E2321</Color>         <!-- ink: main text -->
+    <Color x:Key="Cream">#F4EFE4</Color>
+    <Color x:Key="Brass">#E8A33D</Color>
     <Color x:Key="ErrorLight">#B3261E</Color>
-    <Color x:Key="ErrorDark">#F2B8B5</Color>
     <Color x:Key="ErrorBackgroundLight">#FCE8E6</Color>
-    <Color x:Key="ErrorBackgroundDark">#3B1513</Color>
+    <Color x:Key="ErrorBorderLight">#E7B4B0</Color>
 
+    <!-- Dark (Vault) -->
+    <Color x:Key="PrimaryDark">#F2B705</Color>          <!-- gold: buttons, accents -->
+    <Color x:Key="PrimaryDarkText">#121212</Color>      <!-- text on gold (10.3:1) -->
+    <Color x:Key="Tertiary">#2B2410</Color>             <!-- dark gold tint: success box -->
+    <Color x:Key="OffBlack">#121212</Color>             <!-- page ground -->
+    <Color x:Key="SurfaceDark">#1E1E1E</Color>          <!-- cards -->
+    <Color x:Key="ChipDark">#262626</Color>
+    <Color x:Key="BorderDark">#333333</Color>
+    <Color x:Key="DarkText">#F5F1E6</Color>             <!-- main text (14.8:1 on surface) -->
+    <Color x:Key="MutedDark">#B8B0A0</Color>            <!-- secondary text (7.7:1) -->
+    <Color x:Key="SecondaryDarkText">#F2B705</Color>
+    <Color x:Key="ErrorDark">#FF6B5E</Color>
+    <Color x:Key="ErrorBackgroundDark">#3A1A17</Color>
+    <Color x:Key="ErrorBorderDark">#6B302A</Color>
+
+    <!-- Template leftovers, still used by a few default styles -->
     <Color x:Key="White">White</Color>
     <Color x:Key="Black">Black</Color>
     <Color x:Key="Magenta">#D600AA</Color>
-    <Color x:Key="MidnightBlue">#0E2421</Color>
-    <Color x:Key="OffBlack">#1f1f1f</Color>
 
     <Color x:Key="Gray100">#E1E1E1</Color>
     <Color x:Key="Gray200">#C8C8C8</Color>
@@ -29,7 +48,7 @@
     <Color x:Key="Gray400">#919191</Color>
     <Color x:Key="Gray500">#6E6E6E</Color>
     <Color x:Key="Gray600">#404040</Color>
-    <Color x:Key="Gray900">#212121</Color>
+    <Color x:Key="Gray900">#1E1E1E</Color>
     <Color x:Key="Gray950">#141414</Color>
 
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}"/>
