@@ -13,7 +13,14 @@ internal static class WorkingFiles
 {
     private static string WorkRoot => Path.Combine(FileSystem.CacheDirectory, "pkec-work");
 
-    private static bool IsMobile => OperatingSystem.IsAndroid() || OperatingSystem.IsIOS(); // IsIOS includes Mac Catalyst
+    /// <summary>
+    /// Whether the OS cache and temp folders belong to this app alone: always on
+    /// Android and iOS, on macOS only inside the App Sandbox. Without the sandbox
+    /// they're the user's shared ~/Library/Caches and $TMPDIR, never to be emptied.
+    /// </summary>
+    private static bool HasPrivateStorage => OperatingSystem.IsMacCatalyst()
+        ? Environment.GetEnvironmentVariable("APP_SANDBOX_CONTAINER_ID") is not null
+        : OperatingSystem.IsAndroid() || OperatingSystem.IsIOS();
 
     public static string NewTempPath()
     {
@@ -38,13 +45,13 @@ internal static class WorkingFiles
 
     /// <summary>
     /// Called at startup: removes files left behind if the app was killed
-    /// mid-operation. On mobile this also clears picker copies (see
+    /// mid-operation. With <see cref="HasPrivateStorage"/> this also clears picker copies (see
     /// <see cref="DeletePickerCopy"/>), since nothing else in our private
     /// cache is worth keeping.
     /// </summary>
     public static void CleanUpLeftovers()
     {
-        IEnumerable<string> roots = IsMobile
+        IEnumerable<string> roots = HasPrivateStorage
             ? [FileSystem.CacheDirectory, Path.GetTempPath()]
             : [WorkRoot];
 
@@ -77,7 +84,7 @@ internal static class WorkingFiles
     /// <param name="overwrite">Overwrite the copy's contents first (best effort), e.g. when the original is being deleted too.</param>
     public static void DeletePickerCopy(FileResult? file, bool overwrite = false)
     {
-        if (file is null || !IsMobile || string.IsNullOrEmpty(file.FullPath))
+        if (file is null || !HasPrivateStorage || string.IsNullOrEmpty(file.FullPath))
         {
             return;
         }
