@@ -23,31 +23,17 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		// Width/Height only apply on desktop (Windows, macOS).
-#if MACCATALYST
-		// A fixed, phone-sized window: the page is a single narrow column, and
-		// macOS otherwise opens it at 1024×768. (Mac Catalyst draws these at 77%,
-		// about 354×647 points on screen.)
-		const double width = 460, height = 840;
+		// Width/Height only apply on desktop (Windows, macOS). Wide enough for the
+		// desktop layout (sidebar, file list, password panel; see MainPage.WideLayoutMinWidth);
+		// narrowed below that, the page becomes a single column. (Mac Catalyst draws
+		// these sizes at 77%, so about 862×585 points on screen.)
 		return new Window(new AppShell())
 		{
 			Title = "PocketEncryptor",
-			Width = width,
-			Height = height,
-			MinimumWidth = width,
-			MaximumWidth = width,
-			MinimumHeight = height,
-			MaximumHeight = height,
-		};
-#else
-		return new Window(new AppShell())
-		{
-			Title = "PocketEncryptor",
-			Width = 520,
-			Height = 820,
+			Width = 1120,
+			Height = 760,
 			MinimumWidth = 360,
 			MinimumHeight = 560,
 		};
-#endif
 	}
 }

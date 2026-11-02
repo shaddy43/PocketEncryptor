@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Padlock, centred in the safe zone so Android's adaptive-icon masks don't clip it. -->
+<!-- Pocket Lock: a stitched pocket that is also the padlock body, with a brass shackle.
+     Drawn on a 100x100 grid and scaled into Android's adaptive-icon safe zone
+     (centre circle, ~61% of the canvas) so no mask clips it. -->
 <svg width="456" height="456" viewBox="0 0 456 456" version="1.1" xmlns="http://www.w3.org/2000/svg">
-    <path d="M178 208 V176 a50 50 0 0 1 100 0 V208" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" />
-    <rect x="148" y="204" width="160" height="124" rx="22" fill="#FFFFFF" />
-    <circle cx="228" cy="254" r="17" fill="#1F5F57" />
-    <rect x="220" y="258" width="16" height="38" rx="8" fill="#1F5F57" />
+    <g transform="translate(228 228) scale(3.5) translate(-50 -47.5)">
+        <path d="M37 33 V26 C37 18.5 43 13 50 13 C57 13 63 18.5 63 26 V33" fill="none" stroke="#E8A33D" stroke-width="6" stroke-linecap="round" />
+        <path d="M26 32 H74 V56 C74 71 63 81 50 85 C37 81 26 71 26 56 Z" fill="#F4EFE4" />
+        <path d="M31 40 H69" stroke="#1F5F57" stroke-width="2" stroke-dasharray="3 3" stroke-linecap="round" />
+        <circle cx="50" cy="57" r="6.5" fill="#1F5F57" />
+        <path d="M47.2 60 L45.5 71 H54.5 L52.8 60 Z" fill="#1F5F57" />
+    </g>
 </svg>

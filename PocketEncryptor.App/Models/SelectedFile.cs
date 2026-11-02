@@ -12,6 +12,7 @@ public sealed class SelectedFile : INotifyPropertyChanged
 {
     private FileState _state;
     private string _statusText = string.Empty;
+    private double _progress;
 
     private SelectedFile(PickedFile picked, long size, bool isEncrypted)
     {
@@ -49,10 +50,21 @@ public sealed class SelectedFile : INotifyPropertyChanged
         private set => Set(ref _statusText, value);
     }
 
+    /// <summary>0 to 1 while <see cref="FileState.Working"/>.</summary>
+    public double Progress
+    {
+        get => _progress;
+        set => Set(ref _progress, value);
+    }
+
     public void Update(FileState state, string statusText)
     {
         State = state;
         StatusText = statusText;
+        if (state != FileState.Working)
+        {
+            Progress = 0;
+        }
     }
 
     internal static async Task<SelectedFile> LoadAsync(PickedFile picked)
