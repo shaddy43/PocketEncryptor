@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-02
 
-Run every command from PowerShell on the Windows PC, in the repo folder. macOS and iOS aren't built yet; they get their own section once they are.
+Run every command from PowerShell on the Windows PC, in the repo folder, except section 4 (iPhone), which runs in Terminal on the Mac.
 
 ## 1. Start of day
 
@@ -87,7 +87,39 @@ Moving files between the PC and the device:
 & $adb pull /sdcard/Download/secret.pdf.pkec "$HOME\Downloads\"
 ```
 
-## 4. CLI
+## 4. iPhone (on the Mac)
+
+Run these in Terminal on the Mac, with the iPhone plugged in by USB. Not tried on a real iPhone yet: if signing fails in step 4, keep the error.
+
+With a free Apple ID the app stops opening after 7 days; repeat steps 4 and 5 to renew it. A paid Apple Developer account ($99/year) lasts a year and adds TestFlight.
+
+One-time setup:
+
+1. In Xcode, go to Settings, then Accounts, then **+**, and add your Apple ID.
+2. Get a signing profile: in Xcode, make a new empty iOS App project with the bundle ID `com.shaddy43.pocketencryptor`. Select your iPhone and press Run once. Xcode then creates the certificate and profile. You can delete the project afterwards.
+3. On the iPhone, turn on Settings, then Privacy & Security, then **Developer Mode**. The phone restarts. Plug it in and tap **Trust**.
+
+Each install:
+
+4. Build for the phone:
+
+   ```bash
+   cd ~/PocketEncryptor   # wherever the repo is on the Mac
+   dotnet build PocketEncryptor.App -f net10.0-ios -c Release \
+     -p:RuntimeIdentifier=ios-arm64 -p:ValidateXcodeVersion=false
+   ```
+
+5. Install it:
+
+   ```bash
+   xcrun devicectl list devices    # copy your iPhone's identifier
+   xcrun devicectl device install app --device <ID> \
+     PocketEncryptor.App/bin/Release/net10.0-ios/ios-arm64/PocketEncryptor.App.app
+   ```
+
+6. The first time only: on the iPhone, go to Settings, then General, then **VPN & Device Management**, tap your Apple ID and choose Trust.
+
+## 5. CLI
 
 Build it once after each merge and give it a short name for this terminal session. It asks for the password itself, with masked input.
 
@@ -103,7 +135,7 @@ pkec .\my_folder .\my_folder_enc -r     # encrypt every file in a folder, same p
 - `-r` leaves the originals untouched and writes `.pkec` copies with the same subfolders. Decrypt them one at a time with `-D`.
 - End encrypted names in `.pkec`: the apps then suggest the original name when decrypting. Files from the CLI, the Windows app and the Android app all decrypt in each other.
 
-## 5. Using the app
+## 6. Using the app
 
 The app picks the mode for you: choose only `.pkec` files and it decrypts, choose anything else and it encrypts.
 
@@ -123,7 +155,7 @@ Getting files in without the picker:
 - Originals it can't delete are kept and listed: read-only files, and files shared from another app.
 - There is no undo and no recovery without the password.
 
-## 6. End of day
+## 7. End of day
 
 Work on a branch, push it to the self-hosted server, and merge there. GitHub updates itself from the mirror, so never push to `origin`.
 
@@ -145,7 +177,7 @@ git branch -d feature/my-change
 
 A plain `git push` also goes to the self-hosted server: it's set as the default push remote. Claude's memory folder (`.claude/memory/`) is ignored by git and never pushed.
 
-## 7. When something breaks
+## 8. When something breaks
 
 | Problem | Fix |
 | --- | --- |
