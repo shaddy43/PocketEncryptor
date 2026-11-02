@@ -74,7 +74,8 @@ internal static class WorkingFiles
     /// plaintext file we've just encrypted, don't leave it lying around.
     /// Only ever deletes files inside the app's own private folders.
     /// </summary>
-    public static void DeletePickerCopy(FileResult? file)
+    /// <param name="overwrite">Overwrite the copy's contents first (best effort), e.g. when the original is being deleted too.</param>
+    public static void DeletePickerCopy(FileResult? file, bool overwrite = false)
     {
         if (file is null || !IsMobile || string.IsNullOrEmpty(file.FullPath))
         {
@@ -87,6 +88,18 @@ internal static class WorkingFiles
             string prefix = Path.TrimEndingDirectorySeparator(ResolveSymlinks(root)) + Path.DirectorySeparatorChar;
             if (path.StartsWith(prefix, StringComparison.Ordinal))
             {
+                if (overwrite)
+                {
+                    try
+                    {
+                        Core.SecureFile.OverwriteAndDelete(path);
+                        return;
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        // Fall back to a plain delete.
+                    }
+                }
                 TryDelete(path);
                 return;
             }

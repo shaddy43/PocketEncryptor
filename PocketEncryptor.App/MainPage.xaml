@@ -1,11 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:PocketEncryptor.App.Models"
              x:Class="PocketEncryptor.App.MainPage"
              Title="PocketEncryptor"
              Shell.NavBarIsVisible="False">
 
-    <ScrollView>
+    <ScrollView x:Name="PageScroll">
         <VerticalStackLayout Padding="20,28,20,24" Spacing="20" MaximumWidthRequest="560">
 
             <!-- Header -->
@@ -34,26 +35,51 @@
                         SemanticProperties.Hint="Switch to decrypting a file" />
             </Grid>
 
-            <!-- File -->
-            <Border Padding="16" StrokeShape="RoundRectangle 10">
-                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2">
-                    <Label x:Name="FileNameLabel"
-                           Text="No file chosen"
-                           FontFamily="OpenSansSemibold"
-                           LineBreakMode="MiddleTruncation"
-                           VerticalOptions="End" />
-                    <Label x:Name="FileInfoLabel"
-                           Grid.Row="1"
-                           FontSize="12"
-                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
-                           VerticalOptions="Start" />
-                    <Button x:Name="PickFileButton"
-                            Grid.Column="1"
-                            Grid.RowSpan="2"
-                            Text="Choose file"
-                            VerticalOptions="Center"
-                            Clicked="OnPickFileClicked" />
-                </Grid>
+            <!-- Files -->
+            <Border x:Name="FilesBorder" Padding="16" StrokeShape="RoundRectangle 10">
+                <VerticalStackLayout Spacing="14">
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2">
+                        <Label x:Name="FileNameLabel"
+                               FontFamily="OpenSansSemibold"
+                               LineBreakMode="MiddleTruncation"
+                               VerticalOptions="End" />
+                        <Label x:Name="FileInfoLabel"
+                               Grid.Row="1"
+                               FontSize="12"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
+                               VerticalOptions="Start" />
+                        <Button x:Name="PickFileButton"
+                                Grid.Column="1"
+                                Grid.RowSpan="2"
+                                Text="Choose files"
+                                VerticalOptions="Center"
+                                Clicked="OnPickFileClicked" />
+                    </Grid>
+
+                    <!-- One row per file when several are chosen, with its result -->
+                    <VerticalStackLayout x:Name="FileList" Spacing="10" IsVisible="False">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="models:SelectedFile">
+                                <VerticalStackLayout Spacing="0">
+                                    <Label Text="{Binding Name}" FontSize="14" LineBreakMode="MiddleTruncation" />
+                                    <Label Text="{Binding StatusText}"
+                                           FontSize="12"
+                                           LineBreakMode="TailTruncation"
+                                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding State}" Value="{x:Static models:FileState.Done}">
+                                                <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource PrimaryDark}}" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Label" Binding="{Binding State}" Value="{x:Static models:FileState.Failed}">
+                                                <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource ErrorLight}, Dark={StaticResource ErrorDark}}" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
+                                </VerticalStackLayout>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
             </Border>
 
             <!-- Password -->
@@ -89,6 +115,26 @@
                     </Label>
                 </HorizontalStackLayout>
                 <Label x:Name="PasswordHintLabel" FontSize="13" IsVisible="False" />
+            </VerticalStackLayout>
+
+            <!-- Destructive option: encrypt mode, on platforms where the app can delete originals -->
+            <VerticalStackLayout x:Name="ReplacePanel" Spacing="4">
+                <HorizontalStackLayout Spacing="2">
+                    <CheckBox x:Name="ReplaceCheckBox"
+                              VerticalOptions="Center"
+                              Color="{AppThemeBinding Light={StaticResource ErrorLight}, Dark={StaticResource ErrorDark}}"
+                              SemanticProperties.Description="Purge"
+                              CheckedChanged="OnReplaceChanged" />
+                    <Label Text="Purge" VerticalOptions="Center">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnReplaceLabelTapped" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                </HorizontalStackLayout>
+                <Label x:Name="ReplaceWarningLabel"
+                       IsVisible="False"
+                       FontSize="13"
+                       TextColor="{AppThemeBinding Light={StaticResource ErrorLight}, Dark={StaticResource ErrorDark}}" />
             </VerticalStackLayout>
 
             <!-- Action -->

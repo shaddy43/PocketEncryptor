@@ -124,8 +124,8 @@ public static class PocketCrypto
         RandomNumberGenerator.Fill(header.AsSpan(NoncePrefixOffset, PkecFormat.NoncePrefixSize));
 
         byte[] key = DeriveKeyV2(password, header.AsSpan(SaltOffset, PkecFormat.SaltSize), options.Iterations);
-        byte[] current = new byte[chunkSize];
-        byte[] next = new byte[chunkSize];
+        byte[] current = SecretBuffer(chunkSize); // plaintext
+        byte[] next = SecretBuffer(chunkSize);
         byte[] sealedChunk = new byte[chunkSize + PkecFormat.TagSize];
         try
         {
@@ -246,7 +246,7 @@ public static class PocketCrypto
         byte[] key = DeriveKeyV2(password, header.AsSpan(SaltOffset, PkecFormat.SaltSize), (int)iterations);
         byte[] current = new byte[sealedSize];
         byte[] next = new byte[sealedSize];
-        byte[] plain = new byte[chunkSize];
+        byte[] plain = SecretBuffer(chunkSize);
         try
         {
             using var aes = new AesGcm(key, PkecFormat.TagSize);
@@ -319,9 +319,8 @@ public static class PocketCrypto
         ReadOnlySpan<byte> ciphertext = file[offset..];
 
         // v1 hashed the password exactly as typed (no Unicode normalization).
-        byte[] key = Rfc2898DeriveBytes.Pbkdf2(password, salt.ToArray(), PkecFormat.V1Iterations,
-            HashAlgorithmName.SHA256, PkecFormat.KeySize);
-        byte[] plain = new byte[ciphertext.Length];
+        byte[] key = DeriveKey(password, salt, PkecFormat.V1Iterations);
+        byte[] plain = SecretBuffer(ciphertext.Length);
         try
         {
             using (var aes = new AesGcm(key, PkecFormat.TagSize))
@@ -341,19 +340,35 @@ public static class PocketCrypto
     // Normalizes to NFC first: the "same" password typed on different
     // keyboards/OSes (e.g. "é" as one code point vs "e" + combining accent)
     // must produce the same key.
-    private static byte[] DeriveKeyV2(string password, ReadOnlySpan<byte> salt, int iterations)
+    private static byte[] DeriveKeyV2(string password, ReadOnlySpan<byte> salt, int iterations) =>
+        DeriveKey(password.Normalize(NormalizationForm.FormC), salt, iterations);
+
+    private static byte[] DeriveKey(string password, ReadOnlySpan<byte> salt, int iterations)
     {
-        byte[] passwordBytes = Encoding.UTF8.GetBytes(password.Normalize(NormalizationForm.FormC));
+        byte[] passwordBytes = SecretBuffer(Encoding.UTF8.GetByteCount(password));
+        byte[] key = SecretBuffer(PkecFormat.KeySize);
         try
         {
-            return Rfc2898DeriveBytes.Pbkdf2(passwordBytes, salt, iterations,
-                HashAlgorithmName.SHA256, PkecFormat.KeySize);
+            Encoding.UTF8.GetBytes(password, passwordBytes);
+            Rfc2898DeriveBytes.Pbkdf2(passwordBytes, salt, key, iterations, HashAlgorithmName.SHA256);
+            return key;
+        }
+        catch
+        {
+            CryptographicOperations.ZeroMemory(key);
+            throw;
         }
         finally
         {
             CryptographicOperations.ZeroMemory(passwordBytes);
         }
     }
+
+    // Keys, password bytes and plaintext go in pinned arrays: the garbage
+    // collector never moves pinned memory, so it never leaves stray copies,
+    // and zeroing the array afterwards really erases it. (The password string
+    // itself can't be wiped; strings are immutable in .NET.)
+    private static byte[] SecretBuffer(int length) => GC.AllocateArray<byte>(length, pinned: true);
 
     private static void BuildChunkNonce(Span<byte> nonce, ReadOnlySpan<byte> prefix, uint counter, bool isLast)
     {
