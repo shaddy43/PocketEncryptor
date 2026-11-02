@@ -13,12 +13,16 @@ public partial class MainPage : ContentPage
     private enum StatusKind { Info, Success, Error }
 
     private const int RecommendedPasswordLength = 8;
+
+    /// <summary>From this page width on, the desktop layout: sidebar, files, password panel.</summary>
+    public const double WideLayoutMinWidth = 900;
     private const string WrongPasswordMessage = "Wrong password, or the file is damaged or has been tampered with.";
 
     private readonly ObservableCollection<SelectedFile> _files = [];
     private Mode _mode = Mode.Encrypt;
     private CancellationTokenSource? _cts;
     private bool _busy;
+    private bool? _wide;
 
     public MainPage()
     {
@@ -55,7 +59,10 @@ public partial class MainPage : ContentPage
 
         IncomingFiles.Changed += ProcessIncoming;
 #if WINDOWS || IOS || MACCATALYST
-        AddDropTarget();
+        _normalStroke = FilesBorder.Stroke;
+        _normalDropStroke = DropZone.Stroke;
+        AddDropTarget(PageScroll);
+        AddDropTarget(MainScroll);
 #endif
     }
 
@@ -63,6 +70,62 @@ public partial class MainPage : ContentPage
     {
         base.OnAppearing();
         ProcessIncoming(); // files shared or opened before the page existed
+    }
+
+    // ------------------------------------------------------------------
+    // Layout: one column, or sidebar + files + password panel
+    // ------------------------------------------------------------------
+
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        if (width > 0)
+        {
+            ApplyLayout(width >= WideLayoutMinWidth);
+        }
+    }
+
+    /// <summary>Moves the sections between the narrow column and the wide panes.</summary>
+    private void ApplyLayout(bool wide)
+    {
+        if (_wide == wide)
+        {
+            return;
+        }
+        _wide = wide;
+
+        View[] moving = [FilesBorder, PasswordSection, ReplacePanel, RunButton, BusyPanel, ResultPanel, StatusBorder];
+        foreach (View view in moving)
+        {
+            (view.Parent as Layout)?.Remove(view);
+        }
+
+        if (wide)
+        {
+            int at = MainStack.IndexOf(DropZone);
+            MainStack.Insert(at++, FilesBorder);
+            MainStack.Insert(at++, ResultPanel);
+            MainStack.Insert(at, StatusBorder);
+            foreach (View view in new View[] { PasswordSection, ReplacePanel, RunButton, BusyPanel })
+            {
+                PanelStack.Add(view);
+            }
+        }
+        else
+        {
+            // Back into the column, in reading order, before the footer.
+            int at = NarrowStack.IndexOf(ModeGrid) + 1;
+            foreach (View view in moving)
+            {
+                NarrowStack.Insert(at++, view);
+            }
+        }
+
+        PageScroll.IsVisible = !wide;
+        WideGrid.IsVisible = wide;
+#if WINDOWS || IOS || MACCATALYST
+        DropZone.IsVisible = wide;
+#endif
     }
 
     // ------------------------------------------------------------------
@@ -90,6 +153,9 @@ public partial class MainPage : ContentPage
         bool encrypt = _mode == Mode.Encrypt;
         StyleSegment(EncryptModeButton, selected: encrypt);
         StyleSegment(DecryptModeButton, selected: !encrypt);
+        StyleSidebarItem(SideEncryptButton, selected: encrypt);
+        StyleSidebarItem(SideDecryptButton, selected: !encrypt);
+        WideTitle.Text = encrypt ? "Encrypt" : "Decrypt";
         ConfirmEntry.IsVisible = encrypt;
         PasswordEntry.ReturnType = encrypt ? ReturnType.Next : ReturnType.Done;
         ReplacePanel.IsVisible = encrypt;
@@ -144,6 +210,23 @@ public partial class MainPage : ContentPage
         {
             button.SetAppThemeColor(BackgroundColorProperty, Res("Secondary"), Res("Gray900"));
             button.SetAppThemeColor(Button.TextColorProperty, Res("Primary"), Res("PrimaryDark"));
+        }
+        SemanticProperties.SetDescription(button, button.Text + (selected ? ", selected" : string.Empty));
+    }
+
+    /// <summary>A mode item in the wide layout's dark sidebar.</summary>
+    private static void StyleSidebarItem(Button button, bool selected)
+    {
+        if (selected)
+        {
+            button.SetAppThemeColor(BackgroundColorProperty, Res("Primary"), Res("PrimaryDark"));
+            button.SetAppThemeColor(Button.TextColorProperty, Colors.White, Res("PrimaryDarkText"));
+        }
+        else
+        {
+            // Via SetAppThemeColor too: a plain value wouldn't replace the theme binding set when selected.
+            button.SetAppThemeColor(BackgroundColorProperty, Colors.Transparent, Colors.Transparent);
+            button.SetAppThemeColor(Button.TextColorProperty, Res("SidebarTextLight"), Res("MutedDark"));
         }
         SemanticProperties.SetDescription(button, button.Text + (selected ? ", selected" : string.Empty));
     }
@@ -291,11 +374,17 @@ public partial class MainPage : ContentPage
 
 #if WINDOWS || IOS || MACCATALYST
     private Brush? _normalStroke;
+    private Brush? _normalDropStroke;
+
+    private void ShowDropHighlight(bool on)
+    {
+        FilesBorder.Stroke = on ? new SolidColorBrush(Res("Primary")) : _normalStroke;
+        DropZone.Stroke = on ? new SolidColorBrush(Res("Primary")) : _normalDropStroke;
+    }
 
     /// <summary>Accepts files dragged onto the window, e.g. from File Explorer or Finder.</summary>
-    private void AddDropTarget()
+    private void AddDropTarget(View target)
     {
-        _normalStroke = FilesBorder.Stroke;
         var drop = new DropGestureRecognizer { AllowDrop = true };
         drop.DragOver += (_, e) =>
         {
@@ -311,16 +400,16 @@ public partial class MainPage : ContentPage
                 args.DragUIOverride.Caption = "Add to PocketEncryptor";
             }
 #endif
-            FilesBorder.Stroke = new SolidColorBrush(Res("Primary"));
+            ShowDropHighlight(true);
         };
-        drop.DragLeave += (_, _) => FilesBorder.Stroke = _normalStroke;
+        drop.DragLeave += (_, _) => ShowDropHighlight(false);
         drop.Drop += OnDrop;
-        PageScroll.GestureRecognizers.Add(drop);
+        target.GestureRecognizers.Add(drop);
     }
 
     private async void OnDrop(object? sender, DropEventArgs e)
     {
-        FilesBorder.Stroke = _normalStroke;
+        ShowDropHighlight(false);
 #if WINDOWS
         if (_busy || e.PlatformArgs?.DragEventArgs.DataView is not { } data
             || !data.Contains(global::Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
@@ -347,7 +436,7 @@ public partial class MainPage : ContentPage
 
         if (files.Count > 0)
         {
-            await LoadFilesAsync(files);
+            await LoadFilesAsync(files, append: _files.Count > 0); // dropping adds, like "Add files"
         }
         if (hadFolders)
         {
@@ -394,6 +483,7 @@ public partial class MainPage : ContentPage
         {
             FileNameLabel.Text = "No files chosen";
             FileInfoLabel.Text = "Pick files to encrypt, or .pkec files to decrypt.";
+            WideSubtitle.Text = "Choose or drop files to start.";
             return;
         }
 
@@ -404,6 +494,7 @@ public partial class MainPage : ContentPage
             encrypted == 0 ? $"{size} · will be encrypted"
             : encrypted == count ? $"{size} · encrypted: enter the password to decrypt"
             : $"{encrypted} encrypted, {count - encrypted} not. Each mode skips the files it doesn't apply to.";
+        WideSubtitle.Text = $"{FileNameLabel.Text} · {size}";
     }
 
     /// <summary>Resets the per-file lines of files not yet done to suit the current mode.</summary>
@@ -569,6 +660,8 @@ public partial class MainPage : ContentPage
         DecryptModeButton.IsEnabled = !_busy;
         PasswordEntry.IsEnabled = !_busy;
         ConfirmEntry.IsEnabled = !_busy;
+        SideEncryptButton.IsEnabled = !_busy;
+        SideDecryptButton.IsEnabled = !_busy;
     }
 
     // ------------------------------------------------------------------
@@ -632,11 +725,16 @@ public partial class MainPage : ContentPage
     private async Task RunSingleAsync(SelectedFile file, Mode mode, string password, CancellationToken ct)
     {
         string? tempPath = null;
+        file.Update(FileState.Working, mode == Mode.Encrypt ? "Encrypting…" : "Decrypting…");
         try
         {
             // 1. Produce the full result in private temp storage. For decryption
             //    this means the whole file has authenticated before we save it.
-            tempPath = await ProcessToTempAsync(file, mode, password, done => SetProgress(done, file.Size), ct);
+            tempPath = await ProcessToTempAsync(file, mode, password, done =>
+            {
+                SetProgress(done, file.Size);
+                file.Progress = WorkProgress.Progress;
+            }, ct);
 
             // 2. Let the user choose where it goes (native Save dialog).
             BusyLabel.Text = "Choose where to save…";
@@ -648,9 +746,9 @@ public partial class MainPage : ContentPage
             }
 
             string verb = mode == Mode.Encrypt ? "Encrypted" : "Decrypted";
-            ShowStatus(StatusKind.Success, $"{verb} \"{file.Name}\".\nSaved to: {savedPath}");
             ClearPasswords();
             ClearFiles();
+            ShowResult(StatusKind.Success, $"{verb} 1 file", $"{file.Name}\nSaved to: {savedPath}");
         }
         catch (SaveRefusedException ex)
         {
@@ -658,6 +756,7 @@ public partial class MainPage : ContentPage
         }
         catch (CryptographicException)
         {
+            file.Update(FileState.Failed, "Wrong password, or the file is damaged");
             ShowStatus(StatusKind.Error, WrongPasswordMessage);
         }
         catch (InvalidDataException ex)
@@ -675,6 +774,10 @@ public partial class MainPage : ContentPage
         finally
         {
             WorkingFiles.TryDelete(tempPath);
+            if (file.State == FileState.Working)
+            {
+                RefreshFileStatuses(); // not saved, cancelled or an error: back to its size
+            }
         }
     }
 
@@ -733,7 +836,11 @@ public partial class MainPage : ContentPage
             string? tempPath = null;
             try
             {
-                tempPath = await ProcessToTempAsync(file, mode, password, done => SetProgress(before + done, total), ct);
+                tempPath = await ProcessToTempAsync(file, mode, password, done =>
+                {
+                    SetProgress(before + done, total);
+                    file.Progress = file.Size > 0 ? Math.Min(1.0, done / (double)file.Size) : 0;
+                }, ct);
                 IOutputFolder folder = NextToOriginal(file) ?? chosen!;
                 SavedOutput? saved = await folder.SaveAsync(tempPath, OutputName(file.Name, mode), ct);
                 if (saved is null)
@@ -813,11 +920,11 @@ public partial class MainPage : ContentPage
         }
 
         string past = mode == Mode.Encrypt ? "Encrypted" : "Decrypted";
-        string message = $"{past} {savedCount} of {targets.Count} " + (targets.Count == 1 ? "file." : "files.");
-        if (savedCount > 0)
-        {
-            message += chosen is null ? "\nSaved next to the originals." : $"\nSaved to: {chosen.DisplayName}";
-        }
+        string title = savedCount == targets.Count
+            ? $"{past} " + (savedCount == 1 ? "1 file" : $"{savedCount} files")
+            : $"{savedCount} of {targets.Count} {past.ToLowerInvariant()}";
+        string message = savedCount == 0 ? "Nothing was saved."
+            : chosen is null ? "Saved next to the originals." : $"Saved to: {chosen.DisplayName}";
         if (removed > 0)
         {
             message += removed == 1 ? "\nThe original was deleted." : $"\n{removed} originals were deleted.";
@@ -839,8 +946,15 @@ public partial class MainPage : ContentPage
             message += "\nCancelled before the rest were done.";
         }
 
+        if (failed > 0)
+        {
+            message += _mode == Mode.Decrypt
+                ? "\nTo retry the failed ones, enter their password and press the button again."
+                : "\nPress the button again to retry the failed ones.";
+        }
+
         bool allSaved = savedCount == targets.Count;
-        ShowStatus(failed > 0 ? StatusKind.Error : allSaved && kept == 0 ? StatusKind.Success : StatusKind.Info, message);
+        ShowResult(failed > 0 ? StatusKind.Error : allSaved && kept == 0 ? StatusKind.Success : StatusKind.Info, title, message);
         if (allSaved)
         {
             ClearPasswords();
@@ -931,11 +1045,52 @@ public partial class MainPage : ContentPage
         };
         StatusBorder.SetAppThemeColor(BackgroundColorProperty, Res(bgLight), Res(bgDark));
         StatusLabel.SetAppThemeColor(Label.TextColorProperty, Res(fgLight), Res(fgDark));
+        ResultPanel.IsVisible = false;
         StatusBorder.IsVisible = true;
         SemanticScreenReader.Announce(message);
     }
 
-    private void HideStatus() => StatusBorder.IsVisible = false;
+    /// <summary>The summary of a finished run, with a Done button that clears the list.</summary>
+    private void ShowResult(StatusKind kind, string title, string details)
+    {
+        ResultTitle.Text = title;
+        ResultDetail.Text = details;
+        (string bgLight, string bgDark, string fgLight, string fgDark) = kind switch
+        {
+            StatusKind.Success => ("Secondary", "Tertiary", "MidnightBlue", "DarkText"),
+            StatusKind.Error => ("ErrorBackgroundLight", "ErrorBackgroundDark", "ErrorLight", "ErrorDark"),
+            _ => ("Gray100", "SurfaceDark", "MidnightBlue", "DarkText"),
+        };
+        ResultPanel.SetAppThemeColor(BackgroundColorProperty, Res(bgLight), Res(bgDark));
+        ResultTitle.SetAppThemeColor(Label.TextColorProperty, Res(fgLight), Res(fgDark));
+        ResultDetail.SetAppThemeColor(Label.TextColorProperty, Res(fgLight), Res(fgDark));
+        StatusBorder.IsVisible = false;
+        ResultPanel.IsVisible = true;
+        SemanticScreenReader.Announce(title + ". " + details);
+#if !WINDOWS && !MACCATALYST
+        if (_wide != true)
+        {
+            _ = PageScroll.ScrollToAsync(ResultPanel, ScrollToPosition.MakeVisible, true);
+        }
+#endif
+    }
+
+    private void OnResultDoneClicked(object? sender, EventArgs e)
+    {
+        if (_busy)
+        {
+            return;
+        }
+        ClearFiles();
+        ClearPasswords();
+        HideStatus();
+    }
+
+    private void HideStatus()
+    {
+        StatusBorder.IsVisible = false;
+        ResultPanel.IsVisible = false;
+    }
 
     private static Color Res(string key) =>
         Application.Current?.Resources.TryGetValue(key, out object? value) == true && value is Color color

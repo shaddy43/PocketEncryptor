@@ -21,6 +21,9 @@
     <Color x:Key="ErrorLight">#B3261E</Color>
     <Color x:Key="ErrorBackgroundLight">#FCE8E6</Color>
     <Color x:Key="ErrorBorderLight">#E7B4B0</Color>
+    <Color x:Key="SidebarAccentLight">#7FCFC6</Color>   <!-- on the ink sidebar (wide layout) -->
+    <Color x:Key="SidebarTextLight">#C8D6D3</Color>
+    <Color x:Key="SidebarMutedLight">#A9BDB9</Color>
 
     <!-- Dark (Vault) -->
     <Color x:Key="PrimaryDark">#F2B705</Color>          <!-- gold: buttons, accents -->

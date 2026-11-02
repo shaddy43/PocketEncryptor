@@ -40,11 +40,13 @@ public partial class App : Application
 			MaximumHeight = height,
 		};
 #else
+		// Wide enough for the desktop layout (sidebar, file list, password panel; see
+		// MainPage.WideLayoutMinWidth). Narrowed below that, the page becomes a single column.
 		return new Window(new AppShell())
 		{
 			Title = "PocketEncryptor",
-			Width = 520,
-			Height = 820,
+			Width = 1120,
+			Height = 760,
 			MinimumWidth = 360,
 			MinimumHeight = 560,
 		};
