@@ -37,10 +37,10 @@ internal static class OutputSaver
     {
 #if WINDOWS
         return await WinUI.WindowsFileSaver.SaveAsync(tempPath, suggestedName, sourcePath, cancellationToken);
-#else
-        // Android (Storage Access Framework), iOS and macOS (document picker) take the
-        // full name as-is and never silently replace a different file. On mobile,
-        // sourcePath is the picker's private copy, so it can't be a target anyway.
+#elif ANDROID
+        // The Storage Access Framework takes the full name as-is and never silently
+        // replaces a different file. sourcePath is the picker's private copy or a
+        // shared file's URI, so it can't be a target anyway.
         await using Stream result = File.OpenRead(tempPath);
         var saved = await CommunityToolkit.Maui.Storage.FileSaver.Default.SaveAsync(suggestedName, result, cancellationToken);
         if (saved.IsCancelled)
@@ -49,6 +49,12 @@ internal static class OutputSaver
         }
         saved.EnsureSuccess();
         return Tidy(saved.FilePath);
+#else
+        // iOS and macOS: a folder, not the system Save sheet (see AppleOutputFolder).
+        // A numbered name keeps sourcePath, or anything else there, untouched.
+        IOutputFolder? folder = await AppleOutputFolder.PickAsync(cancellationToken);
+        SavedOutput? saved = folder is null ? null : await folder.SaveAsync(tempPath, suggestedName, cancellationToken);
+        return saved is null ? null : Path.Combine(folder!.DisplayName, saved.Name);
 #endif
     }
 
@@ -71,7 +77,7 @@ internal static class OutputSaver
 #elif ANDROID
         return Droid.AndroidOutputFolder.PickAsync(cancellationToken);
 #else
-        return Task.FromResult<IOutputFolder?>(new SaveEachFile());
+        return AppleOutputFolder.PickAsync(cancellationToken);
 #endif
     }
 
@@ -88,21 +94,4 @@ internal static class OutputSaver
         return null;
 #endif
     }
-
-#if !WINDOWS && !ANDROID
-    /// <summary>
-    /// iOS and macOS for now: one Save dialog per file. A real folder picker there
-    /// needs security-scoped folder access, which is still to be built on a Mac.
-    /// </summary>
-    private sealed class SaveEachFile : IOutputFolder
-    {
-        public string DisplayName => "the locations you chose";
-
-        public async Task<SavedOutput?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken)
-        {
-            string? saved = await OutputSaver.SaveAsync(tempPath, fileName, sourcePath: null, cancellationToken);
-            return saved is null ? null : new SavedOutput(Path.GetFileName(saved), () => File.OpenRead(saved), () => File.Delete(saved));
-        }
-    }
-#endif
 }

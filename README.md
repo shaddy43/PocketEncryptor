@@ -13,8 +13,9 @@ Pick one or more files, enter a password, and save the results wherever you like
 
 - Picking only `.pkec` files switches to **Decrypt** automatically; anything
   else is **Encrypt**.
-- One file: the native Save dialog opens with the suggested name. Several
-  files: choose a folder once, and every result is saved there. Each file is
+- One file: the native Save dialog opens with the suggested name (on iOS and
+  macOS you choose a folder instead). Several files: choose a folder once, and
+  every result is saved there. Each file is
   listed with its own result, so one failure (say, a file with a different
   password) doesn't stop the rest; press the button again to retry just those.
 - With a mixed selection, Encrypt skips files that are already encrypted and
