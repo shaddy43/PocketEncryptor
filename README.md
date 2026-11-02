@@ -156,6 +156,19 @@ Run the app:
     dotnet build PocketEncryptor.App -f net10.0-maccatalyst -t:Run
     dotnet build PocketEncryptor.App -f net10.0-ios -t:Run
 
+### Standalone Windows app
+
+To use the app on any Windows 10 (1809 or later) or Windows 11 PC without
+installing .NET or anything else, publish it as a self-contained folder:
+
+    dotnet publish PocketEncryptor.App -f net10.0-windows10.0.19041.0 -c Release -p:SelfContained=true -p:WindowsAppSDKSelfContained=true
+
+The result is `PocketEncryptor.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\`
+(about 280 MB). Zip the whole folder, copy it anywhere and start
+`PocketEncryptor.App.exe`. Keep the files together: the exe needs the rest of
+the folder. Leave out `-r win-x64`: the project already targets it, and
+passing it breaks the restore for the other platforms.
+
 Building the whole solution (`dotnet build` at the root) builds the app for
 every platform, so it needs the Android SDK (API 36) and a JDK 17–21 installed.
 Newer JDKs, such as the one bundled with current Android Studio, are not
