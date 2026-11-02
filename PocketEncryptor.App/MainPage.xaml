@@ -1,0 +1,127 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="PocketEncryptor.App.MainPage"
+             Title="PocketEncryptor"
+             Shell.NavBarIsVisible="False">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20,28,20,24" Spacing="20" MaximumWidthRequest="560">
+
+            <!-- Header -->
+            <VerticalStackLayout Spacing="4">
+                <Label Text="PocketEncryptor"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="26"
+                       TextColor="{AppThemeBinding Light={StaticResource MidnightBlue}, Dark={StaticResource White}}"
+                       SemanticProperties.HeadingLevel="Level1" />
+                <Label Text="Lock files with a password. Everything happens on this device."
+                       TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray300}}" />
+            </VerticalStackLayout>
+
+            <!-- Mode switch -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Button x:Name="EncryptModeButton"
+                        Text="Encrypt"
+                        FontFamily="OpenSansSemibold"
+                        Clicked="OnEncryptModeClicked"
+                        SemanticProperties.Hint="Switch to encrypting a file" />
+                <Button x:Name="DecryptModeButton"
+                        Grid.Column="1"
+                        Text="Decrypt"
+                        FontFamily="OpenSansSemibold"
+                        Clicked="OnDecryptModeClicked"
+                        SemanticProperties.Hint="Switch to decrypting a file" />
+            </Grid>
+
+            <!-- File -->
+            <Border Padding="16" StrokeShape="RoundRectangle 10">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2">
+                    <Label x:Name="FileNameLabel"
+                           Text="No file chosen"
+                           FontFamily="OpenSansSemibold"
+                           LineBreakMode="MiddleTruncation"
+                           VerticalOptions="End" />
+                    <Label x:Name="FileInfoLabel"
+                           Grid.Row="1"
+                           FontSize="12"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}"
+                           VerticalOptions="Start" />
+                    <Button x:Name="PickFileButton"
+                            Grid.Column="1"
+                            Grid.RowSpan="2"
+                            Text="Choose file"
+                            VerticalOptions="Center"
+                            Clicked="OnPickFileClicked" />
+                </Grid>
+            </Border>
+
+            <!-- Password -->
+            <VerticalStackLayout Spacing="6">
+                <Label Text="Password" FontFamily="OpenSansSemibold" />
+                <Entry x:Name="PasswordEntry"
+                       Placeholder="Enter password"
+                       IsPassword="True"
+                       IsSpellCheckEnabled="False"
+                       IsTextPredictionEnabled="False"
+                       ReturnType="Next"
+                       TextChanged="OnPasswordTextChanged"
+                       Completed="OnPasswordCompleted"
+                       SemanticProperties.Description="Password" />
+                <Entry x:Name="ConfirmEntry"
+                       Placeholder="Confirm password"
+                       IsPassword="True"
+                       IsSpellCheckEnabled="False"
+                       IsTextPredictionEnabled="False"
+                       ReturnType="Done"
+                       TextChanged="OnPasswordTextChanged"
+                       Completed="OnConfirmCompleted"
+                       SemanticProperties.Description="Confirm password" />
+                <HorizontalStackLayout Spacing="2">
+                    <CheckBox x:Name="ShowPasswordCheckBox"
+                              VerticalOptions="Center"
+                              SemanticProperties.Description="Show password"
+                              CheckedChanged="OnShowPasswordChanged" />
+                    <Label Text="Show password" VerticalOptions="Center">
+                        <Label.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnShowPasswordLabelTapped" />
+                        </Label.GestureRecognizers>
+                    </Label>
+                </HorizontalStackLayout>
+                <Label x:Name="PasswordHintLabel" FontSize="13" IsVisible="False" />
+            </VerticalStackLayout>
+
+            <!-- Action -->
+            <Button x:Name="RunButton"
+                    Text="Encrypt file"
+                    FontFamily="OpenSansSemibold"
+                    FontSize="16"
+                    MinimumHeightRequest="50"
+                    Clicked="OnRunClicked" />
+
+            <!-- Progress -->
+            <VerticalStackLayout x:Name="BusyPanel" Spacing="10" IsVisible="False">
+                <ProgressBar x:Name="WorkProgress" />
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <ActivityIndicator x:Name="BusySpinner" HeightRequest="20" WidthRequest="20" VerticalOptions="Center" />
+                    <Label x:Name="BusyLabel" Grid.Column="1" VerticalOptions="Center" />
+                    <Button x:Name="CancelButton"
+                            Grid.Column="2"
+                            Text="Cancel"
+                            Clicked="OnCancelClicked" />
+                </Grid>
+            </VerticalStackLayout>
+
+            <!-- Result / error message -->
+            <Border x:Name="StatusBorder" Padding="14" StrokeShape="RoundRectangle 10" IsVisible="False">
+                <Label x:Name="StatusLabel" LineBreakMode="WordWrap" />
+            </Border>
+
+            <Label Text="There is no way to recover a forgotten password. Keep it somewhere safe."
+                   FontSize="12"
+                   HorizontalTextAlignment="Center"
+                   TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray400}}" />
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

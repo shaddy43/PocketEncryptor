@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Platform-neutral crypto + file format library. Shared by the CLI and the
+    (upcoming) MAUI app for Windows, macOS, iOS and Android, so a file
+    encrypted on one device decrypts on any other.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PocketEncryptor.Core</RootNamespace>
+    <!-- iOS builds are AOT-compiled and trimmed; keep the core safe for that. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+</Project>

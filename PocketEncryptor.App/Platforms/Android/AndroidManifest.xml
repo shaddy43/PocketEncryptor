@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<!--
+	  No permissions: PocketEncryptor never uses the network, and files are
+	  read/written through the system pickers (Storage Access Framework), which
+	  need no storage permission. allowBackup is off so nothing the app keeps
+	  in its private storage is copied into cloud backups.
+	-->
+	<application android:allowBackup="false" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true"></application>
+</manifest>

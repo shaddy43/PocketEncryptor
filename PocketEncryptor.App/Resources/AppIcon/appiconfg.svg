@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Padlock, centred in the safe zone so Android's adaptive-icon masks don't clip it. -->
+<svg width="456" height="456" viewBox="0 0 456 456" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <path d="M178 208 V176 a50 50 0 0 1 100 0 V208" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" />
+    <rect x="148" y="204" width="160" height="124" rx="22" fill="#FFFFFF" />
+    <circle cx="228" cy="254" r="17" fill="#1F5F57" />
+    <rect x="220" y="258" width="16" height="38" rx="8" fill="#1F5F57" />
+</svg>
