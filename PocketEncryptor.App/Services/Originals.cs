@@ -3,8 +3,8 @@ using PocketEncryptor.Core;
 namespace PocketEncryptor.App.Services;
 
 /// <summary>
-/// The user's own file behind a picked file, for "Delete originals after
-/// encrypting". Only sources the app is allowed to delete have one.
+/// The user's own file behind a picked file, for "Purge" (delete originals
+/// after encrypting). Only sources the app is allowed to delete have one.
 /// </summary>
 internal interface IOriginalFile
 {

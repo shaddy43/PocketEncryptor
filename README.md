@@ -38,10 +38,10 @@ Getting files into the app without the picker:
   another app → Choose an app on your PC**, pick `PocketEncryptor.App.exe` and
   tick **Always**. Each "Open with" starts its own window for now.
 
-### Delete originals after encrypting
+### Purge
 
-Tick this (Encrypt mode, Windows and Android) to replace your files with their
-encrypted versions. It asks for confirmation every time, and for each file:
+Tick **Purge** (Encrypt mode, Windows and Android) to replace your files with
+their encrypted versions. It asks for confirmation every time, and for each file:
 
 1. The encrypted file is saved: next to the original on Windows; in a folder
    you choose on Android.

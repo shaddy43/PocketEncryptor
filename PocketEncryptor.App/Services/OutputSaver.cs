@@ -76,7 +76,7 @@ internal static class OutputSaver
     }
 
     /// <summary>
-    /// Where "Delete originals after encrypting" can put the encrypted file
+    /// Where "Purge" can put the encrypted file
     /// right next to the original without asking: on Windows, the original's
     /// own folder. Null elsewhere (the user chooses a folder instead).
     /// </summary>

@@ -123,9 +123,9 @@
                     <CheckBox x:Name="ReplaceCheckBox"
                               VerticalOptions="Center"
                               Color="{AppThemeBinding Light={StaticResource ErrorLight}, Dark={StaticResource ErrorDark}}"
-                              SemanticProperties.Description="Delete originals after encrypting"
+                              SemanticProperties.Description="Purge"
                               CheckedChanged="OnReplaceChanged" />
-                    <Label Text="Delete originals after encrypting" VerticalOptions="Center">
+                    <Label Text="Purge" VerticalOptions="Center">
                         <Label.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnReplaceLabelTapped" />
                         </Label.GestureRecognizers>

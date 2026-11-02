@@ -83,7 +83,7 @@ public partial class MainPage : ContentPage
     }
 
     // ------------------------------------------------------------------
-    // Delete originals after encrypting
+    // Purge: delete originals after encrypting
     // ------------------------------------------------------------------
 
     /// <summary>Platforms where the app gets to delete originals (iOS/macOS: still to come).</summary>
@@ -101,9 +101,7 @@ public partial class MainPage : ContentPage
     private void OnReplaceChanged(object? sender, CheckedChangedEventArgs e)
     {
         ReplaceWarningLabel.IsVisible = e.Value;
-        ReplaceWarningLabel.Text = OperatingSystem.IsWindows()
-            ? "Each encrypted file is saved next to its original and checked, then the original is overwritten and deleted. Only your password can bring it back."
-            : "Each encrypted file is saved where you choose and checked, then the original is overwritten and deleted. Only your password can bring it back.";
+        ReplaceWarningLabel.Text = "Encryption over-writes the originals. Only password can recover files.";
         UpdateState();
     }
 
@@ -115,7 +113,7 @@ public partial class MainPage : ContentPage
         {
             ShowStatus(StatusKind.Info, (targets.Count == 1 ? "The app can't delete this original" : "The app can't delete these originals")
                 + " (shared from another app, read-only, or stored where deleting isn't allowed). "
-                + "Untick \"Delete originals after encrypting\" to just encrypt.");
+                + "Untick \"Purge\" to just encrypt.");
             return false;
         }
 
@@ -124,9 +122,7 @@ public partial class MainPage : ContentPage
             : $"{removable} of the {targets.Count} originals (the rest can't be deleted here and will be kept)";
         string message =
             $"Once each encrypted copy is saved and checked, {which} will be overwritten and deleted. "
-            + "Without the password, they can't be recovered.\n\n"
-            + "Copies elsewhere aren't touched: backups, cloud sync, the Recycle Bin or trash, and traces that SSDs and "
-            + "phones keep internally. Full-disk encryption is what protects those.";
+            + "Without the password, they can't be recovered.";
         return await DisplayAlertAsync("Delete the originals?", message, "Encrypt and delete", "Cancel");
     }
 

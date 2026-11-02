@@ -12,8 +12,8 @@ namespace PocketEncryptor.App.Droid;
 /// <remarks>
 /// MAUI's FilePicker hands back only a private copy. Asking the picker for
 /// read and write access ourselves keeps the document's address, so the
-/// original can be deleted later if the user chooses "Delete originals after
-/// encrypting" and the app holding it (e.g. Files, Downloads) allows it.
+/// original can be deleted later if the user ticks "Purge" and the app
+/// holding it (e.g. Files, Downloads) allows it.
 /// </remarks>
 internal static class AndroidFilePicker
 {
