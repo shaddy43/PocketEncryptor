@@ -28,6 +28,16 @@ Pick one or more files, enter a password, and save the results wherever you like
 - On Android, the system folder picker won't offer the root of Download or of
   the storage itself; choose or create a folder inside them.
 
+Getting files into the app without the picker:
+
+- **Android:** select files in Files, Gallery or any other app and choose
+  **Share → PocketEncryptor**, or tap a `.pkec` file and choose
+  **Open with → PocketEncryptor**.
+- **Windows:** drag files from File Explorer onto the window. To open `.pkec`
+  files by double-clicking, right-click one, choose **Open with → Choose
+  another app → Choose an app on your PC**, pick `PocketEncryptor.App.exe` and
+  tick **Always**. Each "Open with" starts its own window for now.
+
 ## CLI
 
 ### Usage

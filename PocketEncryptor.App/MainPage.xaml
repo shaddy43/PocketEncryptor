@@ -6,7 +6,7 @@
              Title="PocketEncryptor"
              Shell.NavBarIsVisible="False">
 
-    <ScrollView>
+    <ScrollView x:Name="PageScroll">
         <VerticalStackLayout Padding="20,28,20,24" Spacing="20" MaximumWidthRequest="560">
 
             <!-- Header -->
@@ -36,7 +36,7 @@
             </Grid>
 
             <!-- Files -->
-            <Border Padding="16" StrokeShape="RoundRectangle 10">
+            <Border x:Name="FilesBorder" Padding="16" StrokeShape="RoundRectangle 10">
                 <VerticalStackLayout Spacing="14">
                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2">
                         <Label x:Name="FileNameLabel"

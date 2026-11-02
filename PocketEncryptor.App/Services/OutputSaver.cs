@@ -42,8 +42,18 @@ internal static class OutputSaver
             return null;
         }
         saved.EnsureSuccess();
-        return saved.FilePath;
+        return Tidy(saved.FilePath);
 #endif
+    }
+
+    /// <summary>
+    /// The toolkit reports Downloads files on Android as
+    /// "/storage/raw//storage/emulated/0/Download/x"; show the real path.
+    /// </summary>
+    private static string? Tidy(string? path)
+    {
+        int real = path?.IndexOf("//storage/", StringComparison.Ordinal) ?? -1;
+        return real >= 0 ? path![(real + 1)..] : path;
     }
 
     /// <summary>Asks the user for a folder to save a batch of results into.</summary>

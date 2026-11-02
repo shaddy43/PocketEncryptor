@@ -10,6 +10,15 @@ public partial class App : Application
 
 		// Remove temp files left over if the app was killed mid-operation.
 		WorkingFiles.CleanUpLeftovers();
+
+#if WINDOWS
+		// "Open with", double-clicking an associated .pkec file and "Send to"
+		// start the app with the files as arguments.
+		List<FileResult> files = [.. Environment.GetCommandLineArgs().Skip(1)
+			.Where(File.Exists)
+			.Select(path => new FileResult(Path.GetFullPath(path)))];
+		IncomingFiles.Deliver(files);
+#endif
 	}
 
 	protected override Window CreateWindow(IActivationState? activationState)

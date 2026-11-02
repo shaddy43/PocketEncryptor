@@ -31,7 +31,19 @@ public partial class MainPage : ContentPage
         {
             ShowStatus(StatusKind.Error, "This device doesn't support AES-GCM encryption, so PocketEncryptor can't run here.");
             PickFileButton.IsEnabled = false;
+            return;
         }
+
+        IncomingFiles.Changed += ProcessIncoming;
+#if WINDOWS
+        AddDropTarget();
+#endif
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        ProcessIncoming(); // files shared or opened before the page existed
     }
 
     // ------------------------------------------------------------------
@@ -96,38 +108,134 @@ public partial class MainPage : ContentPage
 
     private async void OnPickFileClicked(object? sender, EventArgs e)
     {
+        IReadOnlyList<FileResult> picked;
         try
         {
-            IReadOnlyList<FileResult> picked = await InputPicker.PickFilesAsync();
-            if (picked.Count == 0)
-            {
-                return; // user cancelled
-            }
-
-            var loaded = new List<SelectedFile>(picked.Count);
-            foreach (FileResult file in picked)
-            {
-                loaded.Add(await SelectedFile.LoadAsync(file));
-            }
-
-            ClearFiles(keep: picked);
-            foreach (SelectedFile file in loaded)
-            {
-                _files.Add(file);
-            }
-            HideStatus();
-
-            // Pick the obvious mode: encrypted files get decrypted, anything else encrypted.
-            SetMode(loaded.All(f => f.IsEncrypted) ? Mode.Decrypt : Mode.Encrypt);
-            RefreshFileStatuses();
-            ShowFiles();
-            UpdateState();
+            picked = await InputPicker.PickFilesAsync();
         }
         catch (Exception ex)
         {
-            ShowStatus(StatusKind.Error, "Couldn't open that file: " + Describe(ex));
+            ShowStatus(StatusKind.Error, "Couldn't open the file picker: " + Describe(ex));
+            return;
+        }
+        if (picked.Count > 0)
+        {
+            await LoadFilesAsync(picked);
         }
     }
+
+    /// <summary>Replaces the selection with these files (picked, shared, opened or dropped).</summary>
+    private async Task LoadFilesAsync(IReadOnlyList<FileResult> files)
+    {
+        var loaded = new List<SelectedFile>(files.Count);
+        try
+        {
+            foreach (FileResult file in files)
+            {
+                loaded.Add(await SelectedFile.LoadAsync(file));
+            }
+        }
+        catch (Exception ex)
+        {
+            foreach (FileResult file in files)
+            {
+                WorkingFiles.DeletePickerCopy(file);
+            }
+            ShowStatus(StatusKind.Error, "Couldn't open that file: " + Describe(ex));
+            return;
+        }
+
+        ClearFiles(keep: files);
+        foreach (SelectedFile file in loaded)
+        {
+            _files.Add(file);
+        }
+        HideStatus();
+
+        // Pick the obvious mode: encrypted files get decrypted, anything else encrypted.
+        SetMode(loaded.All(f => f.IsEncrypted) ? Mode.Decrypt : Mode.Encrypt);
+        RefreshFileStatuses();
+        ShowFiles();
+        UpdateState();
+    }
+
+    /// <summary>
+    /// Loads files handed to the app from outside (see IncomingFiles). While a
+    /// run is in progress they wait, and are loaded when it finishes.
+    /// </summary>
+    private async void ProcessIncoming()
+    {
+        if (_busy)
+        {
+            return;
+        }
+        IReadOnlyList<FileResult>? files = IncomingFiles.TakeFiles();
+        IncomingNotice? notice = IncomingFiles.TakeNotice();
+        if (files is not null)
+        {
+            await LoadFilesAsync(files);
+        }
+        if (notice is not null)
+        {
+            ShowStatus(notice.IsError ? StatusKind.Error : StatusKind.Info, notice.Text);
+        }
+    }
+
+#if WINDOWS
+    private Brush? _normalStroke;
+
+    /// <summary>Accepts files dragged onto the window, e.g. from File Explorer.</summary>
+    private void AddDropTarget()
+    {
+        _normalStroke = FilesBorder.Stroke;
+        var drop = new DropGestureRecognizer { AllowDrop = true };
+        drop.DragOver += (_, e) =>
+        {
+            if (_busy)
+            {
+                return;
+            }
+            e.AcceptedOperation = DataPackageOperation.Copy;
+            if (e.PlatformArgs?.DragEventArgs is { } args)
+            {
+                args.AcceptedOperation = global::Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+                args.DragUIOverride.Caption = "Add to PocketEncryptor";
+            }
+            FilesBorder.Stroke = new SolidColorBrush(Res("Primary"));
+        };
+        drop.DragLeave += (_, _) => FilesBorder.Stroke = _normalStroke;
+        drop.Drop += OnDrop;
+        PageScroll.GestureRecognizers.Add(drop);
+    }
+
+    private async void OnDrop(object? sender, DropEventArgs e)
+    {
+        FilesBorder.Stroke = _normalStroke;
+        if (_busy || e.PlatformArgs?.DragEventArgs.DataView is not { } data
+            || !data.Contains(global::Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+        {
+            return;
+        }
+        e.Handled = true;
+
+        var items = await data.GetStorageItemsAsync();
+        List<FileResult> files = [.. items.OfType<global::Windows.Storage.StorageFile>()
+            .Where(f => !string.IsNullOrEmpty(f.Path))
+            .Select(f => new FileResult(f.Path))];
+        bool hadFolders = items.Any(i => i is global::Windows.Storage.IStorageFolder);
+
+        if (files.Count > 0)
+        {
+            await LoadFilesAsync(files);
+        }
+        if (hadFolders)
+        {
+            ShowStatus(StatusKind.Info, files.Count > 0
+                ? "Folders were left out: only files can be added."
+                : "Folders can't be added yet. Drop the files inside them instead.");
+        }
+    }
+#endif
 
     private static string Describe(Exception ex) =>
         string.IsNullOrWhiteSpace(ex.Message) ? $"{ex.GetType().Name} (0x{ex.HResult:X8})" : ex.Message;
@@ -315,6 +423,7 @@ public partial class MainPage : ContentPage
             _cts = null;
             SetBusy(false);
         }
+        ProcessIncoming(); // anything shared while busy
     }
 
     /// <summary>One file: process it, then a Save dialog with the suggested name.</summary>
