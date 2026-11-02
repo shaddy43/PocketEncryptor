@@ -44,7 +44,12 @@ Getting files into the app without the picker:
 - **iOS:** in Files, tap a `.pkec` file, or use **Share → PocketEncryptor** on
   any file. Files are used where they are, not copied.
 
-The macOS window has a fixed, phone-like size.
+Dragged files are added to the list, like **Add files**.
+
+On Windows and macOS, a wide window shows the desktop layout: a sidebar with
+Encrypt/Decrypt, the files in the middle and the password on the right. Made
+narrower, it becomes the single column the phone apps use. Light and dark mode
+follow the system setting.
 
 ### Purge
 
