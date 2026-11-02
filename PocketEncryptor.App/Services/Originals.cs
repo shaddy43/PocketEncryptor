@@ -15,7 +15,7 @@ internal interface IOriginalFile
     Task RemoveAsync();
 }
 
-/// <summary>An original with a real path (Windows; macOS later).</summary>
+/// <summary>An original with a real path (Windows; see AppleOriginal for iOS and macOS).</summary>
 internal sealed class PathOriginal(string path) : IOriginalFile
 {
     public string FullPath { get; } = Path.GetFullPath(path);

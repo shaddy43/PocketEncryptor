@@ -11,7 +11,8 @@ internal static class InputPicker
 #elif ANDROID
         return Droid.AndroidFilePicker.PickAsync();
 #else
-        return PickWithMauiAsync();
+        // iOS and macOS: our own picker, which keeps access to the originals for Purge.
+        return AppleFilePicker.PickFilesAsync();
 #endif
     }
 
@@ -23,14 +24,6 @@ internal static class InputPicker
         // return first so the UI (and screen readers) aren't left waiting on it.
         await Task.Yield();
         return [.. WinUI.WindowsShellDialogs.PickFiles("Choose files").Select(PickedFile.FromPath)];
-    }
-#elif !ANDROID
-    // iOS and macOS: MAUI's picker gives private copies, so the originals
-    // can't be deleted from here (yet).
-    private static async Task<IReadOnlyList<PickedFile>> PickWithMauiAsync()
-    {
-        var picked = await FilePicker.Default.PickMultipleAsync(new PickOptions { PickerTitle = "Choose files" });
-        return picked?.OfType<FileResult>().Select(file => new PickedFile(file, Original: null)).ToList() ?? [];
     }
 #endif
 }

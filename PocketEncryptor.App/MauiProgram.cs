@@ -22,6 +22,12 @@ public static class MauiProgram
 #if ANDROID
 				// Delivers the system pickers' results (see AndroidActivityResults).
 				events.AddAndroid(android => android.OnActivityResult(Droid.AndroidActivityResults.OnActivityResult));
+#elif IOS || MACCATALYST
+				// "Open with" in Finder, "Open in" or Share from Files and other apps:
+				// at launch, or while running.
+				events.AddiOS(ios => ios
+					.SceneWillConnect((_, _, options) => Services.AppleIncomingFiles.Open(options.UrlContexts))
+					.SceneOpenUrl((_, contexts) => Services.AppleIncomingFiles.Open(contexts)));
 #endif
 			});
 

@@ -4,8 +4,8 @@
 internal sealed record IncomingNotice(string Text, bool IsError);
 
 /// <summary>
-/// Files handed to the app from outside: the Android share sheet and "Open
-/// with", drag and drop, or the command line on Windows. Platform code
+/// Files handed to the app from outside: the share sheet and "Open with" on
+/// Android, iOS and macOS, or the command line on Windows. Platform code
 /// delivers them here; the main page takes them when it's ready.
 /// </summary>
 internal static class IncomingFiles
@@ -31,10 +31,10 @@ internal static class IncomingFiles
         }
         Post(() =>
         {
-            // Files nobody took yet are replaced; drop their private copies.
+            // Files nobody took yet are replaced; let go of them.
             foreach (PickedFile old in s_pending ?? [])
             {
-                WorkingFiles.DeletePickerCopy(old.File);
+                WorkingFiles.Release(old.File, old.Original);
             }
             s_pending = files;
             s_notice = problem is null ? null : new IncomingNotice(problem, IsError: true);

@@ -34,20 +34,9 @@ internal sealed class AppleOutputFolder : IOutputFolder
     /// <returns>The folder, or null if the user cancelled.</returns>
     public static async Task<IOutputFolder?> PickAsync(CancellationToken cancellationToken)
     {
-        UIViewController presenter = Platform.GetCurrentUIViewController()
-            ?? throw new InvalidOperationException("There's no window to show the folder picker in.");
-
-        var picked = new TaskCompletionSource<NSUrl?>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var picker = new UIDocumentPickerViewController([UTTypes.Folder]) { AllowsMultipleSelection = false };
-        picker.DidPickDocumentAtUrls += (_, e) => picked.TrySetResult(e.Urls.FirstOrDefault());
-        picker.WasCancelled += (_, _) => picked.TrySetResult(null);
-
-        await using CancellationTokenRegistration registration =
-            cancellationToken.Register(() => picked.TrySetCanceled(cancellationToken));
-        presenter.PresentViewController(picker, true, null);
-
-        NSUrl? url = await picked.Task;
-        return url is null ? null : new AppleOutputFolder(url);
+        NSUrl[] urls = await AppleFilePicker.ShowAsync(picker, cancellationToken);
+        return urls.Length == 0 ? null : new AppleOutputFolder(urls[0]);
     }
 
     public Task<SavedOutput?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken) =>
