@@ -44,9 +44,12 @@ Invoke-Step "Tests" { dotnet test PocketEncryptor.Tests -c Release @clean --nolo
 
 # Windows app: self-contained folder, needs nothing installed on the target PC.
 # Don't add -r win-x64: the project already targets it, and it breaks the restore for the other platforms.
+# PublishReadyToRun=false keeps the zip under the 100 MB upload limit of the release page
+# (Cloudflare): 88 MB instead of 103 MB, for about 0.3 s slower startup.
 $winTfm = "net10.0-windows10.0.19041.0"
 Invoke-Step "Windows app" {
-    dotnet publish PocketEncryptor.App -f $winTfm -c Release -p:SelfContained=true -p:WindowsAppSDKSelfContained=true @clean --nologo
+    dotnet publish PocketEncryptor.App -f $winTfm -c Release -p:SelfContained=true -p:WindowsAppSDKSelfContained=true `
+        -p:PublishReadyToRun=false @clean --nologo
 }
 $winPublish = "PocketEncryptor.App\bin\Release\$winTfm\win-x64\publish"
 Compress-Archive "$winPublish\*" "$out\PocketEncryptor-$version-windows-x64.zip" -CompressionLevel Optimal
@@ -99,6 +102,11 @@ if ($leaks) {
 Get-ChildItem $out -File | Where-Object Name -ne "SHA256SUMS.txt" | Sort-Object Name | ForEach-Object {
     "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
 } | Set-Content "$out\SHA256SUMS.txt" -Encoding ascii
+
+# The release page sits behind Cloudflare, which refuses uploads over 100 MB.
+Get-ChildItem $out -File | Where-Object Length -gt 100MB | ForEach-Object {
+    Write-Warning ("{0} is {1:N1} MB: over the 100 MB upload limit of the release page" -f $_.Name, ($_.Length / 1MB))
+}
 
 Write-Host "`nDone:" -ForegroundColor Green
 Get-ChildItem $out -File | Format-Table Name, @{ n = "MB"; e = { [math]::Round($_.Length / 1MB, 1) } } -AutoSize
