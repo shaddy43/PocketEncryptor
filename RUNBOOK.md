@@ -89,19 +89,24 @@ Moving files between the PC and the device:
 
 ## 4. iPhone (on the Mac)
 
-Run these in Terminal on the Mac, with the iPhone plugged in by USB. Not tried on a real iPhone yet: if signing fails in step 4, keep the error.
+Run these in Terminal on the Mac, with the iPhone plugged in by USB. Tested on an iPhone 13 with iOS 27.0.1 and Xcode 27.2.
 
-With a free Apple ID the app stops opening after 7 days; repeat steps 4 and 5 to renew it. A paid Apple Developer account ($99/year) lasts a year and adds TestFlight.
+With a free Apple ID the app stops opening after 7 days; repeat steps 5 and 6 to renew it. A paid Apple Developer account ($99/year) lasts a year and adds TestFlight.
 
 One-time setup:
 
 1. In Xcode, go to Settings, then Accounts, then **+**, and add your Apple ID.
-2. Get a signing profile: in Xcode, make a new empty iOS App project with the bundle ID `com.shaddy43.pocketencryptor`. Select your iPhone and press Run once. Xcode then creates the certificate and profile. You can delete the project afterwards.
-3. On the iPhone, turn on Settings, then Privacy & Security, then **Developer Mode**. The phone restarts. Plug it in and tap **Trust**.
+2. Plug in the iPhone, unlock it and tap **Trust**.
+3. Get a signing profile: in Xcode, make a new iOS App project (File, then New, then Project, then iOS, then App).
+   - If Xcode asks for the project's options, enter Product Name `pocketencryptor`, Organization Identifier `com.shaddy43` and your Personal Team. Xcode 27 may open the project straight away instead; then click the project at the top of the left sidebar, select the target, open **Signing & Capabilities**, tick **Automatically manage signing**, choose your Personal Team and set the Bundle Identifier to `com.shaddy43.pocketencryptor`.
+   - At the top of the window, change the run destination from My Mac to your iPhone, then press Run once. Xcode creates the certificate and profile.
+   - If the iPhone shows as incompatible, the new project wants a newer iOS than the phone has: on the target's **General** tab, set Minimum Deployments, iOS, to the phone's version (or update the phone).
+   - You can delete the project afterwards. Installing PocketEncryptor replaces its test app, since both use the same bundle ID.
+4. On the iPhone, turn on Settings, then Privacy & Security, then **Developer Mode** (it shows up once Xcode has seen the phone). The phone restarts; confirm when it asks.
 
 Each install:
 
-4. Build for the phone:
+5. Build for the phone:
 
    ```bash
    cd ~/PocketEncryptor   # wherever the repo is on the Mac
@@ -109,7 +114,7 @@ Each install:
      -p:RuntimeIdentifier=ios-arm64 -p:ValidateXcodeVersion=false
    ```
 
-5. Install it:
+6. Install it:
 
    ```bash
    xcrun devicectl list devices    # copy your iPhone's identifier
@@ -117,7 +122,7 @@ Each install:
      PocketEncryptor.App/bin/Release/net10.0-ios/ios-arm64/PocketEncryptor.App.app
    ```
 
-6. The first time only: on the iPhone, go to Settings, then General, then **VPN & Device Management**, tap your Apple ID and choose Trust.
+7. The first time only: on the iPhone, go to Settings, then General, then **VPN & Device Management**, tap **Apple Development: *your Apple ID*** and choose Trust. Until then the app won't open (the phone says its profile "has not been explicitly trusted").
 
 ## 5. CLI
 

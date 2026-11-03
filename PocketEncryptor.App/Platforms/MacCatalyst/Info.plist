@@ -74,9 +74,18 @@
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
 			<string>Alternate</string>
+			<!-- Finder's Open With leaves out apps that only claim public.data, so name the common kinds too. -->
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.data</string>
+				<string>public.content</string>
+				<string>public.text</string>
+				<string>public.image</string>
+				<string>public.audiovisual-content</string>
+				<string>public.composite-content</string>
+				<string>public.spreadsheet</string>
+				<string>public.presentation</string>
+				<string>public.archive</string>
 			</array>
 		</dict>
 	</array>

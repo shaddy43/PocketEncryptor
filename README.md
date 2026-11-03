@@ -42,9 +42,12 @@ Getting files into the app without the picker:
   choose **Open With → PocketEncryptor**; double-clicking a `.pkec` file opens
   it in the app.
 - **iOS:** in Files, tap a `.pkec` file, or use **Share → PocketEncryptor** on
-  any file. Files are used where they are, not copied.
+  a file or photo. Files are used where they are, not copied. Share passes
+  one file at a time (iOS hands several only to apps with a share extension):
+  for several, use **Choose files** in the app.
 
-Dragged files are added to the list, like **Add files**.
+Dragged, shared and opened files are added to the list, like **Add files**.
+After a finished run, they start a new list.
 
 On Windows and macOS, a wide window shows the desktop layout: a sidebar with
 Encrypt/Decrypt, the files in the middle and the password on the right. Made
@@ -57,15 +60,18 @@ Tick **Purge** (Encrypt mode) to replace your files with their encrypted
 versions. It asks for confirmation every time, and for each file:
 
 1. The encrypted file is saved: next to the original on Windows; in a folder
-   you choose on Android, iOS and macOS.
+   you choose on Android, iOS and macOS. On iOS, choose the folder that holds
+   the originals: the system only lets the app delete files in a folder you
+   picked (the picker opens there).
 2. It's read back and fully decrypted with your password as a check. If that
    fails, it's removed and the original is kept.
 3. Only then is the original overwritten with random data and deleted, along
    with any private copy the app made of it.
 
 Some originals can't be deleted by the app, and are kept and listed: files
-shared to it from another app, read-only files, and files stored where the
-owning app doesn't allow deleting (Android). Gallery photos are better
+shared to it from another app, read-only files, files stored where the
+owning app doesn't allow deleting (Android), and on iOS files outside the
+folder you chose. A kept original is left exactly as it was. Gallery photos are better
 encrypted through the Files app, since gallery apps keep their own trash and
 cloud copies.
 

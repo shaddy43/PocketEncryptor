@@ -21,6 +21,13 @@ internal interface IOutputFolder
     /// </summary>
     /// <returns>The saved file, or null if the user skipped it.</returns>
     Task<SavedOutput?> SaveAsync(string tempPath, string fileName, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Overwrites and deletes an original whose encrypted copy was saved here.
+    /// A folder chosen on iOS / macOS lends its access to originals inside it:
+    /// picking a file only grants that file, and deleting needs its folder.
+    /// </summary>
+    Task RemoveOriginalAsync(IOriginalFile original) => original.RemoveAsync();
 }
 
 /// <summary>
@@ -69,15 +76,16 @@ internal static class OutputSaver
     }
 
     /// <summary>Asks the user for a folder to save a batch of results into.</summary>
+    /// <param name="startIn">A folder to open the picker in, where the platform allows it (iOS / macOS).</param>
     /// <returns>The folder, or null if the user cancelled.</returns>
-    public static Task<IOutputFolder?> PickFolderAsync(CancellationToken cancellationToken)
+    public static Task<IOutputFolder?> PickFolderAsync(CancellationToken cancellationToken, string? startIn = null)
     {
 #if WINDOWS
         return WinUI.WindowsOutputFolder.PickAsync(cancellationToken);
 #elif ANDROID
         return Droid.AndroidOutputFolder.PickAsync(cancellationToken);
 #else
-        return AppleOutputFolder.PickAsync(cancellationToken);
+        return AppleOutputFolder.PickAsync(cancellationToken, startIn);
 #endif
     }
 

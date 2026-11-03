@@ -22,6 +22,7 @@ public partial class MainPage : ContentPage
     private Mode _mode = Mode.Encrypt;
     private CancellationTokenSource? _cts;
     private bool _busy;
+    private bool _loadingIncoming;
     private bool? _wide;
 
     public MainPage()
@@ -352,20 +353,30 @@ public partial class MainPage : ContentPage
 
     /// <summary>
     /// Loads files handed to the app from outside (see IncomingFiles). While a
-    /// run is in progress they wait, and are loaded when it finishes.
+    /// run is in progress they wait, and are loaded when it finishes. Like
+    /// dropped files they join a list still being worked on; a finished one
+    /// starts over.
     /// </summary>
     private async void ProcessIncoming()
     {
-        if (_busy)
+        if (_busy || _loadingIncoming)
         {
             return;
         }
-        IReadOnlyList<PickedFile>? files = IncomingFiles.TakeFiles();
-        IncomingNotice? notice = IncomingFiles.TakeNotice();
-        if (files is not null)
+        _loadingIncoming = true;
+        try
         {
-            await LoadFilesAsync(files);
+            // More can arrive while these load: iOS hands over a multi-file "Open in" one file at a time.
+            while (IncomingFiles.TakeFiles() is { } files)
+            {
+                await LoadFilesAsync(files, append: _files.Any(f => f.State != FileState.Done));
+            }
         }
+        finally
+        {
+            _loadingIncoming = false;
+        }
+        IncomingNotice? notice = IncomingFiles.TakeNotice();
         if (notice is not null)
         {
             ShowStatus(notice.IsError ? StatusKind.Error : StatusKind.Info, notice.Text);
@@ -488,10 +499,13 @@ public partial class MainPage : ContentPage
         }
 
         int encrypted = _files.Count(f => f.IsEncrypted);
+        int done = _files.Count(f => f.State == FileState.Done);
         string size = SelectedFile.FormatSize(_files.Sum(f => Math.Max(0, f.Size)));
         FileNameLabel.Text = count == 1 ? "1 file" : $"{count} files";
         FileInfoLabel.Text =
-            encrypted == 0 ? $"{size} · will be encrypted"
+            done == count ? $"{size} · all done"
+            : done > 0 ? $"{size} · {done} of {count} done"
+            : encrypted == 0 ? $"{size} · will be encrypted"
             : encrypted == count ? $"{size} · encrypted: enter the password to decrypt"
             : $"{encrypted} encrypted, {count - encrypted} not. Each mode skips the files it doesn't apply to.";
         WideSubtitle.Text = $"{FileNameLabel.Text} · {size}";
@@ -642,7 +656,14 @@ public partial class MainPage : ContentPage
 
         int runnable = RunnableFiles().Count;
         string verb = _mode == Mode.Encrypt ? "Encrypt" : "Decrypt";
-        if (RemoveOriginals)
+        if (runnable == 0 && _files.Count > 0)
+        {
+            // Every file is done, or none of them applies to this mode.
+            string left = _files.Any(f => f.State == FileState.Done) ? "left " : "";
+            RunButton.Text = $"Nothing {left}to {verb.ToLowerInvariant()}";
+            RunButton.ClearValue(BackgroundColorProperty);
+        }
+        else if (RemoveOriginals)
         {
             RunButton.Text = runnable <= 1 ? "Encrypt, delete original" : $"Encrypt {runnable}, delete originals";
             RunButton.SetAppThemeColor(BackgroundColorProperty, Res("ErrorLight"), Res("ErrorDark"));
@@ -717,6 +738,7 @@ public partial class MainPage : ContentPage
                 ReplaceCheckBox.IsChecked = false; // destructive runs are opt-in every time
             }
             SetBusy(false);
+            ShowFiles(); // the card's summary now counts the files done
         }
         ProcessIncoming(); // anything shared while busy
     }
@@ -799,10 +821,15 @@ public partial class MainPage : ContentPage
         IOutputFolder? chosen = null;
         if (targets.Any(f => NextToOriginal(f) is null))
         {
-            BusyLabel.Text = removeOriginals ? "Choose where to save the encrypted files…" : "Choose a folder for the results…";
+            BusyLabel.Text = !removeOriginals ? "Choose a folder for the results…"
+                : OperatingSystem.IsIOS() ? "Choose the folder with the originals; the encrypted files are saved there…"
+                : "Choose where to save the encrypted files…";
             try
             {
-                chosen = await OutputSaver.PickFolderAsync(ct);
+                // For Purge, open it where the originals are: the folder to choose on iOS.
+                string? originals = removeOriginals && targets[0].Original is not null
+                    ? Path.GetDirectoryName(targets[0].Source.FullPath) : null;
+                chosen = await OutputSaver.PickFolderAsync(ct, startIn: originals);
             }
             catch (OperationCanceledException)
             {
@@ -877,7 +904,12 @@ public partial class MainPage : ContentPage
                     BusyLabel.Text = $"Deleting the original of {file.Name}…";
                     try
                     {
-                        await file.Original!.RemoveAsync();
+                        await folder.RemoveOriginalAsync(file.Original!);
+                    }
+                    catch (UnauthorizedAccessException) when (OperatingSystem.IsIOS())
+                    {
+                        // Left as it was (see SecureFile.OverwriteAndDelete).
+                        whyKept = "the system only lets the app delete files in the folder you choose. To purge it, choose its folder";
                     }
                     catch (Exception ex)
                     {
