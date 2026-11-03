@@ -4,5 +4,12 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!--
+      Release version of the CLI and the libraries (file version of the exe and dlls).
+      The app's own version is ApplicationDisplayVersion in PocketEncryptor.App.csproj:
+      keep the two in step. See RELEASING.md.
+    -->
+    <Version>2.0.0</Version>
   </PropertyGroup>
 </Project>
