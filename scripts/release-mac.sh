@@ -16,17 +16,24 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 DOTNET="${DOTNET:-dotnet}"
+# Neutral source paths (/_/...) in the dlls instead of this Mac's folders, and no .pdb files.
+clean=(-p:ContinuousIntegrationBuild=true -p:DebugType=none)
 
 version=$(sed -n 's:.*<ApplicationDisplayVersion>\(.*\)</ApplicationDisplayVersion>.*:\1:p' PocketEncryptor.App/PocketEncryptor.App.csproj | head -n1)
 out="artifacts/release/v$version"
 mkdir -p "$out"
 echo "PocketEncryptor $version -> $out"
 
+# Start from empty Release folders so no older build (with this Mac's paths) is reused.
+for p in PocketEncryptor.App PocketEncryptor.Core PocketEncryptor.Cli PocketEncryptor.Tests; do
+  rm -rf "$p/bin/Release" "$p/obj/Release"
+done
+
 echo "== Tests"
-"$DOTNET" test PocketEncryptor.Tests -c Release --nologo
+"$DOTNET" test PocketEncryptor.Tests -c Release "${clean[@]}" --nologo
 
 echo "== Mac app"
-"$DOTNET" build PocketEncryptor.App -f net10.0-maccatalyst -c Release -p:ValidateXcodeVersion=false --nologo
+"$DOTNET" build PocketEncryptor.App -f net10.0-maccatalyst -c Release -p:ValidateXcodeVersion=false "${clean[@]}" --nologo
 # The finished universal app is this one; the per-architecture copies lack the sandbox.
 app="PocketEncryptor.App/bin/Release/net10.0-maccatalyst/PocketEncryptor.app"
 rm -f "$out/PocketEncryptor-$version-macos.zip"
@@ -36,12 +43,21 @@ for rid in osx-arm64 osx-x64; do
   echo "== Mac CLI ($rid)"
   tmp=$(mktemp -d)
   "$DOTNET" publish PocketEncryptor.Cli -c Release -r "$rid" --self-contained \
-    -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o "$tmp" --nologo
+    -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true "${clean[@]}" -o "$tmp" --nologo
   name="PocketEncryptor-CLI-$version-macos-${rid#osx-}.zip"
   rm -f "$out/$name"
   ditto -c -k "$tmp/PocketEncryptor" "$out/$name"
   rm -rf "$tmp"
 done
+
+# Guard: the release must not contain this Mac's home folder. The CLI compresses its dlls,
+# so check the uncompressed build outputs.
+if leaks=$(grep -rlF "$HOME" --include='PocketEncryptor*.dll' PocketEncryptor.*/bin/Release PocketEncryptor.*/obj/Release); then
+  rm -f "$out"/*-macos*.zip
+  echo "Mac files removed: these contain your home folder path:" >&2
+  echo "$leaks" >&2
+  exit 1
+fi
 
 # Append (or refresh) this script's files in the checksum list.
 sums="$out/SHA256SUMS.txt"

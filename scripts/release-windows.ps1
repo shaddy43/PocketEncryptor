@@ -32,13 +32,21 @@ function Invoke-Step([string]$name, [scriptblock]$cmd) {
     if ($LASTEXITCODE -ne 0) { throw "$name failed (exit code $LASTEXITCODE)" }
 }
 
-Invoke-Step "Tests" { dotnet test PocketEncryptor.Tests -c Release --nologo }
+# No personal paths in the release: ContinuousIntegrationBuild writes neutral source paths
+# (/_/...) into the dlls instead of this PC's folders (C:\Users\<you>\...), and DebugType=none
+# leaves out the .pdb files. Start from empty Release folders so no older build is reused.
+$clean = @("-p:ContinuousIntegrationBuild=true", "-p:DebugType=none")
+foreach ($p in "PocketEncryptor.App", "PocketEncryptor.Core", "PocketEncryptor.Cli", "PocketEncryptor.Tests") {
+    foreach ($d in "$p\bin\Release", "$p\obj\Release") { if (Test-Path $d) { Remove-Item $d -Recurse -Force } }
+}
+
+Invoke-Step "Tests" { dotnet test PocketEncryptor.Tests -c Release @clean --nologo }
 
 # Windows app: self-contained folder, needs nothing installed on the target PC.
 # Don't add -r win-x64: the project already targets it, and it breaks the restore for the other platforms.
 $winTfm = "net10.0-windows10.0.19041.0"
 Invoke-Step "Windows app" {
-    dotnet publish PocketEncryptor.App -f $winTfm -c Release -p:SelfContained=true -p:WindowsAppSDKSelfContained=true --nologo
+    dotnet publish PocketEncryptor.App -f $winTfm -c Release -p:SelfContained=true -p:WindowsAppSDKSelfContained=true @clean --nologo
 }
 $winPublish = "PocketEncryptor.App\bin\Release\$winTfm\win-x64\publish"
 Compress-Archive "$winPublish\*" "$out\PocketEncryptor-$version-windows-x64.zip" -CompressionLevel Optimal
@@ -48,13 +56,13 @@ $cliOut = Join-Path $env:TEMP "pkec-cli-win-x64"
 if (Test-Path $cliOut) { Remove-Item $cliOut -Recurse -Force }
 Invoke-Step "Windows CLI" {
     dotnet publish PocketEncryptor.Cli -c Release -r win-x64 --self-contained `
-        -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o $cliOut --nologo
+        -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true @clean -o $cliOut --nologo
 }
 Compress-Archive "$cliOut\PocketEncryptor.exe" "$out\PocketEncryptor-CLI-$version-windows-x64.zip" -CompressionLevel Optimal
 Remove-Item $cliOut -Recurse -Force
 
 # Android: APK for sideloading; the AAB for Google Play is built only with your upload key.
-$androidArgs = @("-f", "net10.0-android", "-c", "Release", "--nologo")
+$androidArgs = @("-f", "net10.0-android", "-c", "Release", "--nologo") + $clean
 if ($KeyStore) {
     $secure = Read-Host "Password for $KeyStore" -AsSecureString
     $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
@@ -71,6 +79,20 @@ $androidBin = "PocketEncryptor.App\bin\Release\net10.0-android"
 Copy-Item "$androidBin\com.shaddy43.pocketencryptor-Signed.apk" "$out\PocketEncryptor-$version-android.apk"
 if ($KeyStore) {
     Copy-Item "$androidBin\com.shaddy43.pocketencryptor-Signed.aab" "$out\PocketEncryptor-$version-android-play.aab"
+}
+
+# Guard: the release must not contain this PC's user folder. The zips and the APK compress
+# their dlls, so check the uncompressed build outputs they were made from.
+$homePath = [regex]::Escape($HOME)
+$built = foreach ($p in "PocketEncryptor.App", "PocketEncryptor.Core", "PocketEncryptor.Cli") {
+    foreach ($d in "$p\bin\Release", "$p\obj\Release") { if (Test-Path $d) { $d } }
+}
+$leaks = Get-ChildItem $built -Recurse -File |
+    Where-Object { $_.Name -like "PocketEncryptor*.dll" -or $_.Name -like "PocketEncryptor*.exe" } |
+    Where-Object { [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($_.FullName)) -match $homePath }
+if ($leaks) {
+    Remove-Item $out -Recurse -Force
+    throw "Release removed: these files contain your user folder path:`n" + ($leaks.FullName -join "`n")
 }
 
 # Checksums (the Mac script appends its own files to the same list).
