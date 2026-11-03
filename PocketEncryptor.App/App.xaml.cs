@@ -21,17 +21,20 @@ public partial class App : Application
 #endif
 	}
 
+	// The desktop window's first size: wide enough for the desktop layout (sidebar,
+	// file list, password panel; see MainPage.WideLayoutMinWidth). Narrowed below
+	// that, the page becomes a single column.
+	internal const double WindowWidth = 1120, WindowHeight = 760;
+
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		// Width/Height only apply on desktop (Windows, macOS). Wide enough for the
-		// desktop layout (sidebar, file list, password panel; see MainPage.WideLayoutMinWidth);
-		// narrowed below that, the page becomes a single column. (Mac Catalyst draws
-		// these sizes at 77%, so about 862×585 points on screen.)
+		// Width/Height only apply on Windows: Mac Catalyst ignores them, so its
+		// SceneDelegate sizes the window instead.
 		return new Window(new AppShell())
 		{
 			Title = "PocketEncryptor",
-			Width = 1120,
-			Height = 760,
+			Width = WindowWidth,
+			Height = WindowHeight,
 			MinimumWidth = 360,
 			MinimumHeight = 560,
 		};

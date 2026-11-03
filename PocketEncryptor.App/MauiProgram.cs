@@ -29,6 +29,9 @@ public static class MauiProgram
 					.SceneWillConnect((_, _, options) => Services.AppleIncomingFiles.Open(options.UrlContexts))
 					.SceneOpenUrl((_, contexts) => Services.AppleIncomingFiles.Open(contexts)));
 #endif
+#if MACCATALYST
+				events.AddiOS(ios => ios.SceneOnActivated(SceneDelegate.SizeFirstWindow));
+#endif
 			});
 
 #if DEBUG

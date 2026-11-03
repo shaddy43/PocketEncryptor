@@ -488,10 +488,13 @@ public partial class MainPage : ContentPage
         }
 
         int encrypted = _files.Count(f => f.IsEncrypted);
+        int done = _files.Count(f => f.State == FileState.Done);
         string size = SelectedFile.FormatSize(_files.Sum(f => Math.Max(0, f.Size)));
         FileNameLabel.Text = count == 1 ? "1 file" : $"{count} files";
         FileInfoLabel.Text =
-            encrypted == 0 ? $"{size} · will be encrypted"
+            done == count ? $"{size} · all done"
+            : done > 0 ? $"{size} · {done} of {count} done"
+            : encrypted == 0 ? $"{size} · will be encrypted"
             : encrypted == count ? $"{size} · encrypted: enter the password to decrypt"
             : $"{encrypted} encrypted, {count - encrypted} not. Each mode skips the files it doesn't apply to.";
         WideSubtitle.Text = $"{FileNameLabel.Text} · {size}";
@@ -642,7 +645,14 @@ public partial class MainPage : ContentPage
 
         int runnable = RunnableFiles().Count;
         string verb = _mode == Mode.Encrypt ? "Encrypt" : "Decrypt";
-        if (RemoveOriginals)
+        if (runnable == 0 && _files.Count > 0)
+        {
+            // Every file is done, or none of them applies to this mode.
+            string left = _files.Any(f => f.State == FileState.Done) ? "left " : "";
+            RunButton.Text = $"Nothing {left}to {verb.ToLowerInvariant()}";
+            RunButton.ClearValue(BackgroundColorProperty);
+        }
+        else if (RemoveOriginals)
         {
             RunButton.Text = runnable <= 1 ? "Encrypt, delete original" : $"Encrypt {runnable}, delete originals";
             RunButton.SetAppThemeColor(BackgroundColorProperty, Res("ErrorLight"), Res("ErrorDark"));
@@ -717,6 +727,7 @@ public partial class MainPage : ContentPage
                 ReplaceCheckBox.IsChecked = false; // destructive runs are opt-in every time
             }
             SetBusy(false);
+            ShowFiles(); // the card's summary now counts the files done
         }
         ProcessIncoming(); // anything shared while busy
     }
