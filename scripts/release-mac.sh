@@ -62,7 +62,8 @@ fi
 # Append (or refresh) this script's files in the checksum list.
 sums="$out/SHA256SUMS.txt"
 touch "$sums"
-grep -v -e '-macos' "$sums" > "$sums.tmp" || true
+# Lines from a list made on Windows may end in CRLF, which `shasum -c` reads as part of the name.
+tr -d '\r' < "$sums" | grep -v -e '-macos' > "$sums.tmp" || true
 (cd "$out" && shasum -a 256 *-macos*.zip) >> "$sums.tmp"
 sort -k2 "$sums.tmp" > "$sums" && rm "$sums.tmp"
 
