@@ -31,10 +31,15 @@ internal sealed class AppleOutputFolder : IOutputFolder
 
     public string DisplayName { get; }
 
+    /// <param name="startIn">A folder to open the picker in.</param>
     /// <returns>The folder, or null if the user cancelled.</returns>
-    public static async Task<IOutputFolder?> PickAsync(CancellationToken cancellationToken)
+    public static async Task<IOutputFolder?> PickAsync(CancellationToken cancellationToken, string? startIn = null)
     {
         using var picker = new UIDocumentPickerViewController([UTTypes.Folder]) { AllowsMultipleSelection = false };
+        if (startIn is not null)
+        {
+            picker.DirectoryUrl = NSUrl.FromFilename(startIn);
+        }
         NSUrl[] urls = await AppleFilePicker.ShowAsync(picker, cancellationToken);
         return urls.Length == 0 ? null : new AppleOutputFolder(urls[0]);
     }
@@ -48,6 +53,19 @@ internal sealed class AppleOutputFolder : IOutputFolder
                 OpenRead: () => WithAccess<Stream>(() => File.OpenRead(saved)), // stays readable once opened
                 Delete: () => WithAccess(() => File.Delete(saved)));
         }, cancellationToken);
+
+    public Task RemoveOriginalAsync(IOriginalFile original) =>
+        original is AppleOriginal { FullPath: var path } && Contains(path)
+            ? Task.Run(() => WithAccess(() => SecureFile.OverwriteAndDelete(path)))
+            : original.RemoveAsync();
+
+    /// <summary>Whether <paramref name="path"/> is inside this folder or one of its subfolders.</summary>
+    private bool Contains(string path)
+    {
+        // The same file can come with or without /private in front (/var is a link to /private/var).
+        static string Normal(string p) => p.StartsWith("/private/", StringComparison.Ordinal) ? p["/private".Length..] : p;
+        return Normal(path).StartsWith(Normal(_path).TrimEnd('/') + "/", StringComparison.Ordinal);
+    }
 
     private T WithAccess<T>(Func<T> action)
     {

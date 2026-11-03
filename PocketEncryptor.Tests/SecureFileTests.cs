@@ -52,6 +52,29 @@ public sealed class SecureFileTests : IDisposable
     }
 
     [Fact]
+    public void OverwriteAndDelete_LeavesTheFileUntouchedWhenItsFolderCantChange()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return; // a folder's read-only flag doesn't stop renames on Windows
+        }
+        string folder = Path.Combine(_root, "locked");
+        Directory.CreateDirectory(folder);
+        string path = Path.Combine(folder, "secret.txt");
+        File.WriteAllText(path, "original");
+        File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            Assert.Throws<UnauthorizedAccessException>(() => SecureFile.OverwriteAndDelete(path));
+            Assert.Equal("original", File.ReadAllText(path));
+        }
+        finally
+        {
+            File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    [Fact]
     public void OverwriteAndDelete_MissingFileThrows() =>
         Assert.Throws<FileNotFoundException>(() => SecureFile.OverwriteAndDelete(Path.Combine(_root, "nope")));
 

@@ -22,6 +22,10 @@ internal static class IncomingFiles
     /// <summary>Nothing usable arrived; tell the user why.</summary>
     public static void Failed(string message) => Post(() => s_notice = new IncomingNotice(message, IsError: true));
 
+    /// <summary>
+    /// Adds files for the page to take, after any it hasn't taken yet: iOS hands
+    /// over a multi-file "Open in" one file at a time.
+    /// </summary>
     /// <param name="problem">Shown as an error alongside the files, e.g. some couldn't be read.</param>
     public static void Deliver(IReadOnlyList<PickedFile> files, string? problem = null)
     {
@@ -31,13 +35,10 @@ internal static class IncomingFiles
         }
         Post(() =>
         {
-            // Files nobody took yet are replaced; let go of them.
-            foreach (PickedFile old in s_pending ?? [])
-            {
-                WorkingFiles.Release(old.File, old.Original);
-            }
-            s_pending = files;
-            s_notice = problem is null ? null : new IncomingNotice(problem, IsError: true);
+            s_pending = s_pending is null ? files : [.. s_pending, .. files];
+            // An earlier batch's problem still stands; a "receiving" note is done with.
+            s_notice = problem is not null ? new IncomingNotice(problem, IsError: true)
+                : s_notice is { IsError: true } ? s_notice : null;
         });
     }
 

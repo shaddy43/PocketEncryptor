@@ -18,12 +18,20 @@ public static class SecureFile
     private const int BufferSize = 1 << 16;
 
     /// <summary>
-    /// Overwrites the file's contents with random bytes, flushes them to the
-    /// disk, renames the file to a random name (so its name doesn't linger in
-    /// the folder) and deletes it. Read-only files are refused.
+    /// Renames the file to a random name (so its name doesn't linger in the
+    /// folder), overwrites its contents with random bytes, flushes them to the
+    /// disk and deletes it. Read-only files are refused.
     /// </summary>
+    /// <remarks>
+    /// The rename comes first because it needs the same permission as the
+    /// delete (to change the folder). Where the system lets the app write the
+    /// file but not delete it (iOS grants access to a picked file, not its
+    /// folder), the file is left as it was instead of overwritten and kept.
+    /// </remarks>
     /// <exception cref="FileNotFoundException">The file doesn't exist.</exception>
-    /// <exception cref="UnauthorizedAccessException">The file is read-only or can't be written.</exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// The file is read-only, or the system doesn't allow changing it or its folder. The file is left as it was.
+    /// </exception>
     public static void OverwriteAndDelete(string path)
     {
         var info = new FileInfo(path);
@@ -36,15 +44,20 @@ public static class SecureFile
             throw new UnauthorizedAccessException("The file is read-only.");
         }
 
-        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.None, BufferSize,
-            FileOptions.WriteThrough))
+        string scrambled = Path.Combine(info.DirectoryName!, "." + Guid.NewGuid().ToString("N"));
+        File.Move(path, scrambled);
+        try
         {
+            using var stream = new FileStream(scrambled, FileMode.Open, FileAccess.Write, FileShare.None, BufferSize,
+                FileOptions.WriteThrough);
             Overwrite(stream, stream.Length);
             stream.Flush(flushToDisk: true);
         }
-
-        string scrambled = Path.Combine(info.DirectoryName!, "." + Guid.NewGuid().ToString("N"));
-        File.Move(path, scrambled);
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            File.Move(scrambled, path); // couldn't open it to overwrite: put it back untouched
+            throw;
+        }
         File.Delete(scrambled);
     }
 
