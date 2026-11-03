@@ -1,8 +1,8 @@
 # PocketEncryptor Daily Runbook
 
-Last updated: 2026-11-02
+Last updated: 2026-11-03
 
-Run every command from PowerShell on the Windows PC, in the repo folder, except section 4 (iPhone), which runs in Terminal on the Mac.
+Run every command from PowerShell on the Windows PC, in the repo folder, except sections 4 (iPhone) and 5 (Mac app), which run in Terminal on the Mac.
 
 ## 1. Start of day
 
@@ -124,7 +124,28 @@ Each install:
 
 7. The first time only: on the iPhone, go to Settings, then General, then **VPN & Device Management**, tap **Apple Development: *your Apple ID*** and choose Trust. Until then the app won't open (the phone says its profile "has not been explicitly trusted").
 
-## 5. CLI
+## 5. Mac app
+
+Run these in Terminal on the Mac. The app is signed only for this Mac (no Apple account), so it never expires. On another Mac, the first launch is blocked until you allow it in System Settings, then Privacy & Security, then **Open Anyway**.
+
+1. Install or update it in Applications (quit the app first):
+
+   ```bash
+   cd ~/source/repos/PocketEncryptor   # wherever the repo is on the Mac
+   dotnet build PocketEncryptor.App -f net10.0-maccatalyst -c Release -p:ValidateXcodeVersion=false \
+     && rm -rf /Applications/PocketEncryptor.app \
+     && cp -R PocketEncryptor.App/bin/Release/net10.0-maccatalyst/PocketEncryptor.app /Applications/
+   ```
+
+   Copy `net10.0-maccatalyst/PocketEncryptor.app`, the finished app for Apple Silicon and Intel. The copies in the `maccatalyst-arm64` and `maccatalyst-x64` folders are unfinished: they lack the sandbox.
+
+2. If Finder's **Open With** doesn't list PocketEncryptor, register the app:
+
+   ```bash
+   /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/PocketEncryptor.app
+   ```
+
+## 6. CLI
 
 Build it once after each merge and give it a short name for this terminal session. It asks for the password itself, with masked input.
 
@@ -140,7 +161,7 @@ pkec .\my_folder .\my_folder_enc -r     # encrypt every file in a folder, same p
 - `-r` leaves the originals untouched and writes `.pkec` copies with the same subfolders. Decrypt them one at a time with `-D`.
 - End encrypted names in `.pkec`: the apps then suggest the original name when decrypting. Files from the CLI, the Windows app and the Android app all decrypt in each other.
 
-## 6. Using the app
+## 7. Using the app
 
 The app picks the mode for you: choose only `.pkec` files and it decrypts, choose anything else and it encrypts.
 
@@ -160,7 +181,7 @@ Getting files in without the picker:
 - Originals it can't delete are kept and listed: read-only files, and files shared from another app.
 - There is no undo and no recovery without the password.
 
-## 7. End of day
+## 8. End of day
 
 Work on a branch, push it to the self-hosted server, and merge there. GitHub updates itself from the mirror, so never push to `origin`.
 
@@ -182,7 +203,7 @@ git branch -d feature/my-change
 
 A plain `git push` also goes to the self-hosted server: it's set as the default push remote. Claude's memory folder (`.claude/memory/`) is ignored by git and never pushed.
 
-## 8. When something breaks
+## 9. When something breaks
 
 | Problem | Fix |
 | --- | --- |
