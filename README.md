@@ -1,136 +1,93 @@
 # PocketEncryptor
 
-A personal tool for encrypting and decrypting files with a passphrase, using
-AES-256-GCM (authenticated encryption) and PBKDF2-HMAC-SHA256 key derivation.
+**Lock a file on one device. Open it on any other.**
 
-It comes as a desktop/mobile app (Windows, macOS, iOS, Android) and a CLI. Both
-use the same core library and file format, so a file encrypted on one device
-decrypts on any other.
+PocketEncryptor is a small, simple app that encrypts your files with a password. A file you lock on your Android phone opens on your Windows PC, your Mac or your iPhone, and the other way round. It's the same app, the same file and the same password everywhere.
 
-## App
+There's no account, no cloud and no internet: just your file, your password and strong encryption.
 
-Pick one or more files, enter a password, and save the results wherever you like:
+| | |
+| --- | --- |
+| 🔒 **Strong** | AES-256-GCM encryption. A wrong password or a tampered file is always detected |
+| 🔁 **Everywhere** | Android, iPhone and iPad, macOS, Windows, and a command-line tool, all reading the same `.pkec` files |
+| 👆 **Simple** | Pick files, type a password, press one button |
+| 🕶️ **Private** | Works offline, asks for no permissions, collects nothing ([privacy policy](PRIVACY.md)) |
 
-- Picking only `.pkec` files switches to **Decrypt** automatically; anything
-  else is **Encrypt**.
-- One file: the native Save dialog opens with the suggested name (on iOS and
-  macOS you choose a folder instead). Several files: choose a folder once, and
-  every result is saved there. Each file is
-  listed with its own result, so one failure (say, a file with a different
-  password) doesn't stop the rest; press the button again to retry just those.
-- With a mixed selection, Encrypt skips files that are already encrypted and
-  Decrypt skips files that aren't, so both can be handled in two runs.
-- Each result is produced (and, when decrypting, fully verified) in the app's
-  private storage first, then copied to the location you choose. A wrong
-  password never produces an output file.
-- The app never overwrites anything: if a name is taken, the result gets a
-  numbered name such as `photo (1).jpg.pkec`. It needs no network access and
-  requests no permissions.
-- On Android, the system folder picker won't offer the root of Download or of
-  the storage itself; choose or create a folder inside them.
+## Download
 
-Getting files into the app without the picker:
+Get the latest version from the [Releases page](https://git.shaddy43.com/shaddy43/PocketEncryptor/releases).
 
-- **Android:** select files in Files, Gallery or any other app and choose
-  **Share → PocketEncryptor**, or tap a `.pkec` file and choose
-  **Open with → PocketEncryptor**.
-- **Windows:** drag files from File Explorer onto the window. To open `.pkec`
-  files by double-clicking, right-click one, choose **Open with → Choose
-  another app → Choose an app on your PC**, pick `PocketEncryptor.App.exe` and
-  tick **Always**. Each "Open with" starts its own window for now.
-- **macOS:** drag files from Finder onto the window, or right-click a file and
-  choose **Open With → PocketEncryptor**; double-clicking a `.pkec` file opens
-  it in the app.
-- **iOS:** in Files, tap a `.pkec` file, or use **Share → PocketEncryptor** on
-  a file or photo. Files are used where they are, not copied. Share passes
-  one file at a time (iOS hands several only to apps with a share extension):
-  for several, use **Choose files** in the app.
+| Platform | File | How to start |
+| --- | --- | --- |
+| **Windows** 10 / 11 | `PocketEncryptor-2.0-windows-x64.zip` | Unzip anywhere and run `PocketEncryptor.App.exe`. Nothing to install |
+| **macOS** 14 or later | `PocketEncryptor-2.0-macos.zip` | Unzip and drag PocketEncryptor to Applications |
+| **Android** 5 or later | `PocketEncryptor-2.0-android.apk` | Open it on the phone and allow the install |
+| **iPhone / iPad** | Not downloadable yet | Coming to the App Store; until then, build it yourself ([RUNBOOK](RUNBOOK.md#4-iphone-on-the-mac)) |
+| **Command line** | `PocketEncryptor-CLI-2.0-*.zip` | One file: `PocketEncryptor.exe` (Windows) or `PocketEncryptor` (Mac) |
 
-Dragged, shared and opened files are added to the list, like **Add files**.
-After a finished run, they start a new list.
+These builds aren't signed by Microsoft or Apple yet, so the first launch asks you to confirm:
 
-On Windows and macOS, a wide window shows the desktop layout: a sidebar with
-Encrypt/Decrypt, the files in the middle and the password on the right. Made
-narrower, it becomes the single column the phone apps use. Light and dark mode
-follow the system setting.
+- **Windows:** "Windows protected your PC" → **More info → Run anyway**.
+- **macOS:** if it can't be opened or "is damaged", go to **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/PocketEncryptor.app`.
+- **Android:** allow your browser or Files app to **install unknown apps**.
 
-### Purge
+## How it works
 
-Tick **Purge** (Encrypt mode) to replace your files with their encrypted
-versions. It asks for confirmation every time, and for each file:
+1. **Choose files.** Any files to encrypt, or `.pkec` files to decrypt; the app switches mode for you.
+2. **Enter a password.** Twice when encrypting.
+3. **Press the button** and choose where to save.
 
-1. The encrypted file is saved: next to the original on Windows; in a folder
-   you choose on Android, iOS and macOS. On iOS, choose the folder that holds
-   the originals: the system only lets the app delete files in a folder you
-   picked (the picker opens there).
-2. It's read back and fully decrypted with your password as a check. If that
-   fails, it's removed and the original is kept.
-3. Only then is the original overwritten with random data and deleted, along
-   with any private copy the app made of it.
+That's it. `photo.jpg` becomes `photo.jpg.pkec`; send it, store it or back it up anywhere. On any device, open the `.pkec` file with the same password to get `photo.jpg` back.
 
-Some originals can't be deleted by the app, and are kept and listed: files
-shared to it from another app, read-only files, files stored where the
-owning app doesn't allow deleting (Android), and on iOS files outside the
-folder you chose. A kept original is left exactly as it was. Gallery photos are better
-encrypted through the Files app, since gallery apps keep their own trash and
-cloud copies.
+> **Keep your password safe.** It is never stored anywhere, and there is no way to recover a file without it.
 
-Overwriting before deleting defeats undelete tools and helps on hard disks,
-but no app can guarantee that nothing survives: SSDs and phone storage write
-changes to fresh cells, some file systems (APFS, f2fs) keep old blocks, and
-backups, cloud sync, snapshots, the Recycle Bin and thumbnail caches hold
-copies of their own. Turn on full-disk encryption (BitLocker, FileVault;
-phones have it built in) so that whatever does remain is unreadable.
+You can also bring files straight in:
 
-## CLI
+| | |
+| --- | --- |
+| **Android** | **Share → PocketEncryptor** from Files, Gallery or any app; tap a `.pkec` file and choose **Open with** |
+| **iPhone / iPad** | Tap a `.pkec` file in Files, or **Share → PocketEncryptor** |
+| **macOS** | Drag files onto the window, or **Open With → PocketEncryptor** in Finder |
+| **Windows** | Drag files from File Explorer onto the window |
 
-### Usage
+### Good to know
 
-    PocketEncryptor <input> <output> <-E|-D|-r>
+- **Many files at once.** Pick several and choose one folder; every file gets its own result, so one failure doesn't stop the rest.
+- **Nothing is overwritten.** If a name is taken, the result is saved as `photo (1).jpg.pkec`.
+- **No broken files.** A wrong password never produces an output file: every result is checked in full before it's saved.
 
-- `-E`  Encrypt `input_file`, writing the result to `output_file`.
-        You will be prompted to enter and confirm a passphrase (masked input).
-- `-D`  Decrypt `input_file`, writing the result to `output_file`.
-        You will be prompted to enter the passphrase used at encryption time.
-- `-r`  Recursively encrypt **every file** under `input_dir`, writing encrypted
-        copies into `output_dir` and preserving the subfolder structure. Each
-        encrypted file gets a `.pkec` extension (e.g. `notes.txt` →
-        `notes.txt.pkec`). You are prompted once, and the same passphrase is
-        used for all files. Originals are left untouched. To decrypt them later,
-        run `-D` on each `.pkec` file.
+### Purge: replace originals with encrypted copies
 
-### Example
+Tick **Purge** when encrypting to swap your files for their encrypted versions. For each file the app saves the encrypted copy, checks that it decrypts with your password, and only then overwrites the original with random data and deletes it. It asks for confirmation every time.
 
-    dotnet run --project PocketEncryptor.Cli -- secret.docx secret.docx.enc -E
-    dotnet run --project PocketEncryptor.Cli -- secret.docx.enc restored.docx -D
-    dotnet run --project PocketEncryptor.Cli -- ./my_folder ./encrypted_folder -r
+Some originals can't be deleted by the app and are kept and listed, such as read-only files and files shared from another app. No app can promise a deleted file leaves no trace (SSDs, backups, cloud sync and the Recycle Bin keep their own copies), so turn on full-disk encryption (BitLocker, FileVault; phones have it built in) as well.
 
-## Security notes
+## Command line
 
-- AES-256-GCM provides confidentiality and integrity: a wrong passphrase or a
-  tampered file is detected and rejected with a clear error, rather than
-  silently producing garbage output.
-- Files are encrypted in authenticated 64 KiB chunks, so files of any size are
-  streamed with constant memory (important on phones). Reordering, dropping,
-  truncating or appending chunks is detected.
-- Decrypted output is written to a temporary file and only moved into place
-  once the whole file has authenticated, so a failure never leaves a partial
-  or corrupt output file.
-- A random 16-byte salt and nonce prefix are generated for every encryption
-  and stored (not secret) in the output file's header, so encrypting the same
-  file twice with the same passphrase yields different ciphertext.
-- The passphrase is Unicode-normalized (NFC) and passed through
-  PBKDF2-HMAC-SHA256 with 600,000 iterations before being used as the AES key.
-  It is entered interactively and never appears as a command-line argument,
-  in shell history, or in `ps` output.
-- Files from the previous release (format v1) still decrypt. New files are
-  always written as v2.
-- Keys, password bytes and plaintext buffers are kept in pinned memory (never
-  moved or copied by the .NET garbage collector) and zeroed as soon as they're
-  done with. The password text itself can't be wiped: .NET strings are
-  immutable, and the OS text box holds its own copy.
+```
+PocketEncryptor <input> <output> -E     encrypt a file
+PocketEncryptor <input> <output> -D     decrypt a file
+PocketEncryptor <folder> <output> -r    encrypt every file in a folder (originals untouched)
+```
 
-## File format (v2)
+The password is asked for with masked input, never passed on the command line. Files from the CLI and the apps open in each other.
+
+```
+PocketEncryptor notes.txt notes.txt.pkec -E
+PocketEncryptor notes.txt.pkec notes.txt -D
+```
+
+## Under the hood
+
+- **Encryption:** AES-256-GCM, which keeps the file secret *and* detects any change to it.
+- **Password to key:** PBKDF2-HMAC-SHA256 with 600,000 iterations and a random salt per file, so the same file encrypted twice looks completely different.
+- **Any size, even on phones:** files are encrypted in 64 KiB chunks with constant memory. Reordered, missing or extra chunks are detected.
+- **Safe writes:** results are written to a private temporary file and moved into place only once complete and verified.
+- **Memory hygiene:** keys and plaintext buffers are pinned and zeroed after use. (The password text itself can't be wiped: .NET strings are immutable.)
+- **Compatible:** files from version 1 still decrypt; new files use format v2.
+
+<details>
+<summary>File format (v2)</summary>
 
     [4 bytes]  magic "PKEC"
     [1 byte]   format version 0x02
@@ -142,60 +99,29 @@ phones have it built in) so that whatever does remain is unreadable.
     [<= chunk size bytes] ciphertext
     [16 bytes]            AES-GCM authentication tag
 
-Chunk `i` is sealed with nonce `prefix || i (uint32 BE) || final_flag (1 byte)`
-and the 36-byte header as associated data. Every chunk except the last holds
-exactly `chunk size` bytes of plaintext. See `PocketEncryptor.Core/PkecFormat.cs`
-for details, including the legacy v1 layout.
+Chunk `i` is sealed with nonce `prefix || i (uint32 BE) || final_flag (1 byte)` and the 36-byte header as associated data. Every chunk except the last holds exactly `chunk size` bytes of plaintext. See `PocketEncryptor.Core/PkecFormat.cs`, which also describes the legacy v1 layout.
 
-## Project layout
+</details>
 
-    PocketEncryptor.Core/   crypto + file format, shared by every front end
-    PocketEncryptor.App/    .NET MAUI app: Windows, macOS, iOS, Android
-    PocketEncryptor.Cli/    command-line tool (builds PocketEncryptor.exe)
-    PocketEncryptor.Tests/  xUnit tests for the core
+## Build it yourself
 
-## Building and testing
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) and the MAUI workload (`dotnet workload install maui`). iPhone and Mac builds need a Mac with Xcode.
 
-Requires the .NET 10 SDK. The app also needs the MAUI workload
-(`dotnet workload install maui`).
+```
+dotnet test PocketEncryptor.Tests                                          # tests
+dotnet build PocketEncryptor.App -f net10.0-windows10.0.19041.0 -t:Run     # Windows app
+dotnet build PocketEncryptor.App -f net10.0-android -t:Run                 # Android (device or emulator attached)
+dotnet build PocketEncryptor.App -f net10.0-maccatalyst -t:Run             # Mac app
+dotnet run --project PocketEncryptor.Cli -- notes.txt notes.txt.pkec -E    # CLI
+```
 
-    dotnet test PocketEncryptor.Tests        # core tests
-    dotnet build PocketEncryptor.Cli         # CLI
+- **[RUNBOOK.md](RUNBOOK.md):** day-to-day commands for building, running and installing every app, including the Android SDK setup and iPhone installs.
+- **[RELEASING.md](RELEASING.md):** making a release, and the notes for Google Play and the App Store.
 
-Run the app:
-
-    # Windows
-    dotnet build PocketEncryptor.App -f net10.0-windows10.0.19041.0 -t:Run
-
-    # Android (needs the Android SDK; see below), with a device or emulator attached
-    dotnet build PocketEncryptor.App -f net10.0-android -t:Run
-
-    # macOS / iOS: on a Mac with Xcode
-    dotnet build PocketEncryptor.App -f net10.0-maccatalyst -t:Run
-    dotnet build PocketEncryptor.App -f net10.0-ios -t:Run
-
-### Standalone Windows app
-
-To use the app on any Windows 10 (1809 or later) or Windows 11 PC without
-installing .NET or anything else, publish it as a self-contained folder:
-
-    dotnet publish PocketEncryptor.App -f net10.0-windows10.0.19041.0 -c Release -p:SelfContained=true -p:WindowsAppSDKSelfContained=true
-
-The result is `PocketEncryptor.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\`
-(about 280 MB). Zip the whole folder, copy it anywhere and start
-`PocketEncryptor.App.exe`. Keep the files together: the exe needs the rest of
-the folder. Leave out `-r win-x64`: the project already targets it, and
-passing it breaks the restore for the other platforms.
-
-Building the whole solution (`dotnet build` at the root) builds the app for
-every platform, so it needs the Android SDK (API 36) and a JDK 17–21 installed.
-Newer JDKs, such as the one bundled with current Android Studio, are not
-supported. This installs both into your user profile; no admin rights needed:
-
-    dotnet build PocketEncryptor.App -t:InstallAndroidDependencies -f net10.0-android ^
-      -p:AndroidSdkDirectory="%LOCALAPPDATA%\Android\Sdk" ^
-      -p:JavaSdkDirectory="%LOCALAPPDATA%\Android\openjdk" -p:AcceptAndroidSDKLicenses=True
-
-The app project uses `%LOCALAPPDATA%\Android\openjdk` automatically when it
-exists. Android Studio's emulators work for testing, including newer Android
-versions than API 36.
+```
+PocketEncryptor.Core/   encryption and file format, shared by everything
+PocketEncryptor.App/    the app (.NET MAUI): Windows, macOS, iOS, Android
+PocketEncryptor.Cli/    command-line tool
+PocketEncryptor.Tests/  tests for the core
+scripts/                release build scripts
+```

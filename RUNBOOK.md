@@ -4,9 +4,22 @@ Last updated: 2026-11-03
 
 Run every command from PowerShell on the Windows PC, in the repo folder, except sections 4 (iPhone) and 5 (Mac app), which run in Terminal on the Mac.
 
+## Quick reference
+
+Build and start each app. The details, and how to install a Release build for everyday use, are in the sections below.
+
+| App | Where | Build and run |
+| --- | --- | --- |
+| Windows | PC | `dotnet build PocketEncryptor.App -f net10.0-windows10.0.19041.0 -t:Run` |
+| Android | PC, one device or emulator attached | `dotnet build PocketEncryptor.App -f net10.0-android -t:Run` |
+| iPhone | Mac, phone on USB | build + `xcrun devicectl device install app …` (section 4) |
+| Mac | Mac | `dotnet build PocketEncryptor.App -f net10.0-maccatalyst -t:Run -p:ValidateXcodeVersion=false` |
+| CLI | PC or Mac | `dotnet run --project PocketEncryptor.Cli -- <input> <output> -E` |
+| Release files | PC, then Mac | `.\scripts\release-windows.ps1`, then `bash scripts/release-mac.sh` (section 8) |
+
 ## 1. Start of day
 
-Get the latest `master` from the self-hosted server and check that the tests pass (73 at last count).
+Get the latest `master` from the self-hosted server and check that the tests pass (75 at last count).
 
 ```powershell
 cd $HOME\source\repos\PocketEncryptor
@@ -50,6 +63,14 @@ Compress-Archive ".\PocketEncryptor.App\bin\Release\net10.0-windows10.0.19041.0\
 Unzip it anywhere on the other PC and start `PocketEncryptor.App.exe`, keeping the files together (about 280 MB unzipped, 100 MB zipped). Don't add `-r win-x64`: it breaks the restore for the other platforms.
 
 ## 3. Android app
+
+One-time setup, if the Android SDK or JDK isn't installed yet (both go into your user profile; no admin rights needed). Use JDK 17–21: newer JDKs, such as the one bundled with current Android Studio, are not supported.
+
+```powershell
+dotnet build PocketEncryptor.App -t:InstallAndroidDependencies -f net10.0-android `
+  -p:AndroidSdkDirectory="$env:LOCALAPPDATA\Android\Sdk" `
+  -p:JavaSdkDirectory="$env:LOCALAPPDATA\Android\openjdk" -p:AcceptAndroidSDKLicenses=True
+```
 
 Attach one device, either the emulator or your phone, then run or install the app. Keep only one attached so the build knows where to deploy.
 
@@ -109,7 +130,7 @@ Each install:
 5. Build for the phone:
 
    ```bash
-   cd ~/PocketEncryptor   # wherever the repo is on the Mac
+   cd ~/source/repos/PocketEncryptor   # wherever the repo is on the Mac
    dotnet build PocketEncryptor.App -f net10.0-ios -c Release \
      -p:RuntimeIdentifier=ios-arm64 -p:ValidateXcodeVersion=false
    ```
@@ -167,21 +188,44 @@ The app picks the mode for you: choose only `.pkec` files and it decrypts, choos
 
 1. Press **Choose files** and pick one or more files.
 2. Enter the password (twice when encrypting).
-3. Press the button. One file opens a Save dialog; several files ask for a folder once.
+3. Press the button. One file opens a Save dialog (on iPhone and Mac, a folder picker); several files ask for a folder once.
 4. Read each file's result in the list. A failed file (for example, a different password) can be retried on its own by pressing the button again.
+
+With a mixed selection, Encrypt skips files that are already `.pkec` and Decrypt skips the others, so do it in two runs.
 
 Getting files in without the picker:
 
-- **Windows:** drag files from Explorer onto the window.
+- **Windows:** drag files from Explorer onto the window. To open `.pkec` files by double-clicking: right-click one → **Open with → Choose another app → Choose an app on your PC**, pick `PocketEncryptor.App.exe` and tick **Always**. Each "Open with" starts its own window.
 - **Android:** in Files or Gallery, choose **Share → PocketEncryptor**, or tap a `.pkec` file and choose **Open with → PocketEncryptor**.
+- **iPhone:** in Files, tap a `.pkec` file, or **Share → PocketEncryptor**. Share passes one file at a time; for several, use **Choose files**.
+- **Mac:** drag files from Finder onto the window, or right-click → **Open With → PocketEncryptor**.
 
-**Purge** (Encrypt mode, Windows and Android) replaces the originals with their encrypted files. It asks every time, checks that each encrypted file decrypts before touching anything, and unticks itself after the run.
+**Purge** (Encrypt mode, all platforms) replaces the originals with their encrypted files. It asks every time, checks that each encrypted file decrypts before touching anything, and unticks itself after the run.
 
-- On Windows the encrypted file goes next to the original; on Android you pick a folder (not the Download root).
-- Originals it can't delete are kept and listed: read-only files, and files shared from another app.
+- Windows saves the encrypted file next to the original. Android, iPhone and Mac ask for a folder: on Android not the Download root (pick or create a folder inside it); on iPhone, pick the folder that holds the originals, or they can't be deleted.
+- Originals it can't delete are kept, unchanged, and listed: read-only files, files shared from another app, and on iPhone files outside the chosen folder.
 - There is no undo and no recovery without the password.
 
-## 8. End of day
+## 8. Release builds
+
+Make the files for a new release, then publish them on the Forgejo release page. Full steps, signing and the Google Play / App Store notes are in [RELEASING.md](RELEASING.md).
+
+1. Set the version in `PocketEncryptor.App.csproj` (`ApplicationDisplayVersion`) and `Directory.Build.props` (`Version`).
+2. On the PC (tests, Windows app, Windows CLI, Android APK):
+
+   ```powershell
+   .\scripts\release-windows.ps1
+   ```
+
+3. On the Mac (tests, Mac app, Mac CLI):
+
+   ```bash
+   bash scripts/release-mac.sh
+   ```
+
+Both write to `artifacts/release/v<version>/` with a `SHA256SUMS.txt`. Unzip and try each file before publishing (RELEASING.md section 2).
+
+## 9. End of day
 
 Work on a branch, push it to the self-hosted server, and merge there. GitHub updates itself from the mirror, so never push to `origin`.
 
@@ -203,12 +247,13 @@ git branch -d feature/my-change
 
 A plain `git push` also goes to the self-hosted server: it's set as the default push remote. Claude's memory folder (`.claude/memory/`) is ignored by git and never pushed.
 
-## 9. When something breaks
+## 10. When something breaks
 
 | Problem | Fix |
 | --- | --- |
+| Release script: Compress-Archive fails or a file is in use | Close the app and Explorer windows on the `artifacts` or `bin` folder, then run it again |
 | Windows build: file is locked or in use | Close the app, or run `Get-Process PocketEncryptor.App \| Stop-Process` |
-| Android build: XA0033 or an unsupported JDK | The build uses JDK 17 in `%LOCALAPPDATA%\Android\openjdk`. If that folder is gone, rerun the install command in the README (Building and testing) |
+| Android build: XA0033 or an unsupported JDK | The build uses JDK 17 in `%LOCALAPPDATA%\Android\openjdk`. If that folder is gone, rerun the one-time setup in section 3 |
 | `adb devices` is empty or says unauthorized | Replug the phone and accept the prompt, or run `& $adb kill-server` and try again |
 | `-t:Run` complains about several devices | Close the emulator or unplug the phone, so only one is attached |
 | Android app closes right after a Debug `-t:Run` | Run `& $adb shell am force-stop com.shaddy43.pocketencryptor`, then open it again |
