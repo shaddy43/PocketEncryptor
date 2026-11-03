@@ -79,16 +79,20 @@ PocketEncryptor is now an app for **Android, iPhone, Mac and Windows**. Encrypt 
 | Platform | File |
 | --- | --- |
 | Windows 10/11 | `PocketEncryptor-2.0-windows-x64.zip`: unzip, run `PocketEncryptor.App.exe` |
-| macOS 14+ | `PocketEncryptor-2.0-macos.zip`: unzip, drag to Applications |
+| macOS 14+ (Apple Silicon and Intel) | `PocketEncryptor-2.0-macos.zip`: unzip, drag to Applications |
 | Android 5+ | `PocketEncryptor-2.0-android.apk` |
-| Command line | `PocketEncryptor-CLI-2.0-*.zip` |
+| iPhone | No download yet: installing on an iPhone needs an Apple developer account. To build it yourself, see RUNBOOK.md |
+| Command line, Windows | `PocketEncryptor-CLI-2.0-windows-x64.zip` |
+| Command line, Mac | `PocketEncryptor-CLI-2.0-macos-arm64.zip` (Apple Silicon) or `PocketEncryptor-CLI-2.0-macos-x64.zip` (Intel) |
 
 **First launch.** These builds aren't signed by Microsoft or Apple yet:
 - Windows: if SmartScreen says "Windows protected your PC", choose **More info → Run anyway**.
-- macOS: if it says the app can't be opened or "is damaged", open **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/PocketEncryptor.app`.
+- macOS: if it says the app can't be opened or "is damaged", open **System Settings → Privacy & Security → Open Anyway**, or run `xattr -dr com.apple.quarantine /Applications/PocketEncryptor.app`. For the Mac command line, run `xattr -d com.apple.quarantine PocketEncryptor` in its folder.
 - Android: allow your browser or Files app to **install unknown apps** when asked.
 
-Check a download with `SHA256SUMS.txt`.
+**Check a download** against `SHA256SUMS.txt`:
+- macOS or Linux, in the download folder: `shasum -a 256 -c SHA256SUMS.txt --ignore-missing`
+- Windows PowerShell: `Get-FileHash .\PocketEncryptor-2.0-windows-x64.zip` and compare the hash with the file's line
 ```
 
 ## 4. Signing the desktop builds (later)

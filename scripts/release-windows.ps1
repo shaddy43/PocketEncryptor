@@ -99,9 +99,11 @@ if ($leaks) {
 }
 
 # Checksums (the Mac script appends its own files to the same list).
-Get-ChildItem $out -File | Where-Object Name -ne "SHA256SUMS.txt" | Sort-Object Name | ForEach-Object {
+$sums = Get-ChildItem $out -File | Where-Object Name -ne "SHA256SUMS.txt" | Sort-Object Name | ForEach-Object {
     "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
-} | Set-Content "$out\SHA256SUMS.txt" -Encoding ascii
+}
+# LF line endings, not Set-Content's CRLF: `shasum -c` on a Mac or Linux reads a CR as part of the file name.
+[IO.File]::WriteAllText("$out\SHA256SUMS.txt", (($sums -join "`n") + "`n"), [Text.Encoding]::ASCII)
 
 # The release page sits behind Cloudflare, which refuses uploads over 100 MB.
 Get-ChildItem $out -File | Where-Object Length -gt 100MB | ForEach-Object {
