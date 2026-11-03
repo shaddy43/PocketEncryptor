@@ -56,11 +56,11 @@ $s.TargetPath = "$exe"; $s.Save()
 To run the app on another PC, publish a standalone folder. It needs nothing installed there: no .NET, no Windows App SDK.
 
 ```powershell
-dotnet publish PocketEncryptor.App -f net10.0-windows10.0.19041.0 -c Release -p:SelfContained=true -p:WindowsAppSDKSelfContained=true
+dotnet publish PocketEncryptor.App -f net10.0-windows10.0.19041.0 -c Release -p:SelfContained=true -p:WindowsAppSDKSelfContained=true -p:PublishReadyToRun=false
 Compress-Archive ".\PocketEncryptor.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\*" "$HOME\Desktop\PocketEncryptor-win-x64.zip" -Force
 ```
 
-Unzip it anywhere on the other PC and start `PocketEncryptor.App.exe`, keeping the files together (about 280 MB unzipped, 100 MB zipped). Don't add `-r win-x64`: it breaks the restore for the other platforms.
+Unzip it anywhere on the other PC and start `PocketEncryptor.App.exe`, keeping the files together (about 225 MB unzipped, 88 MB zipped). Don't add `-r win-x64`: it breaks the restore for the other platforms. `PublishReadyToRun=false` keeps the zip under the release page's 100 MB upload limit (Cloudflare); without it the zip is 103 MB and starts about 0.3 s faster.
 
 ## 3. Android app
 
