@@ -75,6 +75,27 @@ public sealed class SecureFileTests : IDisposable
     }
 
     [Fact]
+    public void OverwriteAndDelete_OpenElsewhere_KeepsTheFileAndNamesIt()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return; // share modes are a Windows thing
+        }
+        string path = Path.Combine(_root, "open.txt");
+        File.WriteAllText(path, "original");
+        // Another app holds it open but lets it be renamed: the rename succeeds,
+        // the overwrite can't open it, so it's renamed back.
+        using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+        {
+            IOException ex = Assert.ThrowsAny<IOException>(() => SecureFile.OverwriteAndDelete(path));
+            Assert.DoesNotContain(Path.Combine(_root, "."), ex.Message);
+            Assert.Contains("open.txt", ex.Message);
+        }
+        Assert.Equal("original", File.ReadAllText(path));
+        Assert.Single(Directory.GetFiles(_root));
+    }
+
+    [Fact]
     public void OverwriteAndDelete_MissingFileThrows() =>
         Assert.Throws<FileNotFoundException>(() => SecureFile.OverwriteAndDelete(Path.Combine(_root, "nope")));
 

@@ -56,7 +56,9 @@ public static class SecureFile
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             File.Move(scrambled, path); // couldn't open it to overwrite: put it back untouched
-            throw;
+            // The error names the temporary name; report it under the file's own.
+            string message = ex.Message.Replace(scrambled, path, StringComparison.OrdinalIgnoreCase);
+            throw ex is IOException ? new IOException(message, ex) : new UnauthorizedAccessException(message, ex);
         }
         File.Delete(scrambled);
     }
