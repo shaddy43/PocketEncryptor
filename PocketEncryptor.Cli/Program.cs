@@ -20,6 +20,7 @@ public static class Program
             return 0;
         }
 
+        Ui.HideTypedKeys();
         Ui.Banner();
         if (args.Length == 0 || args.Any(a => a is "-h" or "--help" or "-?" or "/?"))
         {
@@ -332,7 +333,8 @@ public static class Program
     /// <summary>Asks twice to catch typos. Null after three mismatches.</summary>
     private static string? ReadNewPassword()
     {
-        for (int attempt = 0; attempt < 3; attempt++)
+        const int Attempts = 3;
+        for (int attempt = 1; attempt <= Attempts; attempt++)
         {
             string first = Ui.ReadPassword("Password: ");
             string second = Ui.ReadPassword("Confirm:  ");
@@ -340,7 +342,10 @@ public static class Program
             {
                 return first;
             }
-            Ui.Warning("The passwords don't match. Try again.");
+            if (attempt < Attempts)
+            {
+                Ui.Warning("The passwords don't match. Try again.");
+            }
         }
         Ui.Error("Stopped: the passwords didn't match. Nothing was changed.");
         return null;
