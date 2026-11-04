@@ -1,6 +1,6 @@
 # PocketEncryptor Daily Runbook
 
-Last updated: 2026-11-03
+Last updated: 2026-11-04
 
 Run every command from PowerShell on the Windows PC, in the repo folder, except sections 4 (iPhone) and 5 (Mac app), which run in Terminal on the Mac.
 
@@ -19,16 +19,14 @@ Build and start each app. The details, and how to install a Release build for ev
 
 ## 1. Start of day
 
-Get the latest `master` from the self-hosted server and check that the tests pass (75 at last count).
+Get the latest `master` and check that the tests pass (75 at last count).
 
 ```powershell
-cd $HOME\source\repos\PocketEncryptor
+cd $HOME\source\repos\PocketEncryptor   # wherever the repo is
 git checkout master
-git pull selfhosted master
+git pull
 dotnet test PocketEncryptor.Tests
 ```
-
-Pulling needs no passphrase: the self-hosted repo is fetched over HTTPS.
 
 ## 2. Windows app
 
@@ -60,7 +58,7 @@ dotnet publish PocketEncryptor.App -f net10.0-windows10.0.19041.0 -c Release -p:
 Compress-Archive ".\PocketEncryptor.App\bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\*" "$HOME\Desktop\PocketEncryptor-win-x64.zip" -Force
 ```
 
-Unzip it anywhere on the other PC and start `PocketEncryptor.App.exe`, keeping the files together (about 225 MB unzipped, 88 MB zipped). Don't add `-r win-x64`: it breaks the restore for the other platforms. `PublishReadyToRun=false` keeps the zip under the release page's 100 MB upload limit (Cloudflare); without it the zip is 103 MB and starts about 0.3 s faster.
+Unzip it anywhere on the other PC and start `PocketEncryptor.App.exe`, keeping the files together (about 225 MB unzipped, 88 MB zipped). Don't add `-r win-x64`: it breaks the restore for the other platforms. `PublishReadyToRun=false` keeps the zip under 100 MB, a common upload limit on release pages; without it the zip is 103 MB and starts about 0.3 s faster.
 
 ## 3. Android app
 
@@ -208,7 +206,7 @@ Getting files in without the picker:
 
 ## 8. Release builds
 
-Make the files for a new release, then publish them on the Forgejo release page. Full steps, signing and the Google Play / App Store notes are in [RELEASING.md](RELEASING.md).
+Make the files for a new release, then publish them on a release page. Full steps, signing and the Google Play / App Store notes are in [RELEASING.md](RELEASING.md).
 
 1. Set the version in `PocketEncryptor.App.csproj` (`ApplicationDisplayVersion`) and `Directory.Build.props` (`Version`).
 2. On the PC (tests, Windows app, Windows CLI, Android APK):
@@ -227,25 +225,23 @@ Both write to `artifacts/release/v<version>/` with a `SHA256SUMS.txt`. Unzip and
 
 ## 9. End of day
 
-Work on a branch, push it to the self-hosted server, and merge there. GitHub updates itself from the mirror, so never push to `origin`.
+Work on a branch, push it and merge it through a pull request.
 
 ```powershell
 git checkout -b feature/my-change           # once, before you start
 git add -A
 git commit -m "What changed and why"
-git push -u selfhosted feature/my-change     # asks for your SSH key passphrase
+git push -u origin feature/my-change
 ```
 
-1. Open a pull request into `master` at [git.shaddy43.com/shaddy43/PocketEncryptor](https://git.shaddy43.com/shaddy43/PocketEncryptor) and merge it.
+1. Open a pull request into `master` on your Git host and merge it.
 2. Bring the merge home and drop the branch:
 
 ```powershell
 git checkout master
-git pull selfhosted master
+git pull
 git branch -d feature/my-change
 ```
-
-A plain `git push` also goes to the self-hosted server: it's set as the default push remote. Claude's memory folder (`.claude/memory/`) is ignored by git and never pushed.
 
 ## 10. When something breaks
 
@@ -260,4 +256,3 @@ A plain `git push` also goes to the self-hosted server: it's set as the default 
 | Files pushed with adb don't show under Downloads in the picker | Open ☰, then the device name, then Download |
 | Android won't use Download as the output folder | Choose or create a folder inside Download |
 | "Wrong password" | Nothing was written. Passwords are case-sensitive: check Caps Lock |
-| `git push` says Permission denied (publickey) | Push from your own terminal, so it can ask for the SSH key passphrase |
