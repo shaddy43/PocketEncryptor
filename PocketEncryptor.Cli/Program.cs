@@ -1,146 +1,378 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
-using System.Text;
 using PocketEncryptor.Core;
 
 namespace PocketEncryptor.Cli;
 
 public static class Program
 {
+    private enum Mode { Encrypt, Decrypt, EncryptFolder }
+
+    private sealed record Options(Mode Mode, string Input, string Output, bool Purge);
+
     public static int Main(string[] args)
     {
-        Console.WriteLine("This is your personal pocket encryptor");
+        Ui.Init();
 
-        if (args.Length != 3)
+        if (args.Contains("--version"))
         {
-            PrintUsage();
+            Console.WriteLine("PocketEncryptor " + Ui.Version);
+            return 0;
+        }
+
+        Ui.Banner();
+        if (args.Length == 0 || args.Any(a => a is "-h" or "--help" or "-?" or "/?"))
+        {
+            Ui.Usage();
+            return args.Length == 0 ? 1 : 0;
+        }
+
+        if (!TryParse(args, out Options? options, out string? problem))
+        {
+            Ui.Error(problem);
+            Console.WriteLine();
+            Ui.Usage();
             return 1;
         }
 
-        string inputPath = args[0];
-        string outputPath = args[1];
-        string mode = args[2];
-
-        switch (mode)
+        if (Console.IsInputRedirected)
         {
-            case "-E":
-                return RunEncrypt(inputPath, outputPath);
-            case "-D":
-                return RunDecrypt(inputPath, outputPath);
-            case "-r":
-                return RunEncryptRecursive(inputPath, outputPath);
-            default:
-                Console.WriteLine("No valid process.... Please write either -E for encryption, -D for decryption, or -r for recursive directory encryption");
-                PrintUsage();
-                return 1;
+            // Console.ReadKey needs a terminal: the password is never read from a pipe.
+            Ui.Error("The password has to be typed in a terminal; input can't be redirected.");
+            return 1;
+        }
+
+        try
+        {
+            return options.Mode switch
+            {
+                Mode.Encrypt => RunEncrypt(options),
+                Mode.Decrypt => RunDecrypt(options),
+                _ => RunEncryptFolder(options),
+            };
+        }
+        catch (Exception ex)
+        {
+            return ReportError(ex);
         }
     }
 
-    private static void PrintUsage()
+    /// <summary>
+    /// "&lt;input&gt; &lt;output&gt; -E|-D|-r [--purge]". The mode and --purge may
+    /// come anywhere; the two paths keep their order.
+    /// </summary>
+    private static bool TryParse(string[] args, [NotNullWhen(true)] out Options? options,
+        [NotNullWhen(false)] out string? problem)
     {
-        Console.WriteLine("Usage: PocketEncryptor <input> <output> <-E|-D|-r>");
-        Console.WriteLine("  -E  Encrypt input_file to output_file (you will be prompted for a passphrase)");
-        Console.WriteLine("  -D  Decrypt input_file to output_file (you will be prompted for the passphrase)");
-        Console.WriteLine("  -r  Recursively encrypt every file under input_dir, writing encrypted");
-        Console.WriteLine("      copies (.pkec) into output_dir with the same passphrase for all files");
-        Console.WriteLine("Eg: PocketEncryptor secret.docx secret.enc -E");
-        Console.WriteLine("    PocketEncryptor ./my_folder ./encrypted_folder -r");
+        options = null;
+        Mode? mode = null;
+        bool purge = false;
+        var paths = new List<string>();
+
+        foreach (string arg in args)
+        {
+            Mode? flag = arg switch
+            {
+                "-E" => Mode.Encrypt,
+                "-D" => Mode.Decrypt,
+                "-r" => Mode.EncryptFolder,
+                _ => null,
+            };
+            if (flag is not null)
+            {
+                if (mode is not null && mode != flag)
+                {
+                    problem = "Choose one of -E, -D or -r.";
+                    return false;
+                }
+                mode = flag;
+            }
+            else if (arg == "--purge")
+            {
+                purge = true;
+            }
+            else if (arg.Length > 1 && arg[0] == '-')
+            {
+                problem = $"Unknown option: {arg}";
+                return false;
+            }
+            else
+            {
+                paths.Add(arg);
+            }
+        }
+
+        if (mode is null)
+        {
+            problem = "Add -E to encrypt, -D to decrypt or -r to encrypt a folder.";
+            return false;
+        }
+        if (paths.Count != 2)
+        {
+            problem = paths.Count < 2 ? "Give an input and an output." : "Too many paths: give one input and one output.";
+            return false;
+        }
+        if (purge && mode == Mode.Decrypt)
+        {
+            problem = "--purge works only when encrypting (-E or -r).";
+            return false;
+        }
+
+        options = new Options(mode.Value, paths[0], paths[1], purge);
+        problem = null;
+        return true;
     }
 
-    private static int RunEncrypt(string inputPath, string outputPath)
+    // ------------------------------------------------------------------
+    // Modes
+    // ------------------------------------------------------------------
+
+    private static int RunEncrypt(Options o)
     {
-        try
+        if (o.Purge)
         {
-            string? password = ReadNewPasswordWithConfirmation();
-            if (password == null)
+            if (!File.Exists(o.Input))
             {
-                Console.WriteLine("Aborted: passphrases did not match.");
+                Ui.Error("File not found: " + o.Input);
                 return 1;
             }
-
-            Console.WriteLine("Encrypting your file, please wait...");
-            PocketCrypto.EncryptFile(inputPath, outputPath, password);
-            Console.WriteLine("Encrypted !!! File saved in: " + outputPath);
-            return 0;
+            if (SamePath(o.Input, o.Output))
+            {
+                Ui.Error("With --purge, the output must be a different file from the input.");
+                return 1;
+            }
+            Ui.Warning($"Purge: once {o.Output} is written and checked,");
+            Ui.Warning($"{o.Input} is overwritten with random data and deleted.");
+            Ui.Warning("Without the password, it can't be recovered.");
+            if (!Ui.Confirm("Delete the original?"))
+            {
+                Ui.Info("Cancelled. Nothing was changed.");
+                return 1;
+            }
+            Console.WriteLine();
         }
-        catch (Exception ex)
-        {
-            return ReportError(ex);
-        }
-    }
 
-    private static int RunDecrypt(string inputPath, string outputPath)
-    {
-        try
+        string? password = ReadNewPassword();
+        if (password is null)
         {
-            string password = ReadPassword("Enter passphrase: ");
-
-            Console.WriteLine("Decrypting your file, please wait...");
-            // DecryptFile only writes outputPath once the whole file has
-            // authenticated, so a failure never leaves a corrupt/partial file.
-            PocketCrypto.DecryptFile(inputPath, outputPath, password);
-            Console.WriteLine("Decrypted !!! File saved in: " + outputPath);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            return ReportError(ex);
-        }
-    }
-
-    private static int RunEncryptRecursive(string inputDir, string outputDir)
-    {
-        if (!Directory.Exists(inputDir))
-        {
-            Console.WriteLine("File error: directory not found: " + inputDir);
             return 1;
         }
 
-        string? password = ReadNewPasswordWithConfirmation();
-        if (password == null)
+        Ui.Info("Encrypting " + o.Input + " ...");
+        PocketCrypto.EncryptFile(o.Input, o.Output, password);
+
+        if (!o.Purge)
         {
-            Console.WriteLine("Aborted: passphrases did not match.");
+            Ui.Success("Encrypted: " + o.Output);
+            return 0;
+        }
+
+        Ui.Info("Checking " + o.Output + " ...");
+        string? whyKept = Purge(o.Input, o.Output, password, out bool copyRemoved);
+        if (copyRemoved)
+        {
+            Ui.Error("The encrypted copy didn't check out, so it was removed and the original kept.");
             return 1;
+        }
+        if (whyKept is not null)
+        {
+            Ui.Warning("Encrypted: " + o.Output);
+            Ui.Warning("The original was kept: " + whyKept);
+            return 1;
+        }
+        Ui.Success("Encrypted: " + o.Output);
+        Ui.Success("Original overwritten and deleted: " + o.Input);
+        return 0;
+    }
+
+    private static int RunDecrypt(Options o)
+    {
+        string password = Ui.ReadPassword("Password: ");
+
+        Ui.Info("Decrypting " + o.Input + " ...");
+        // DecryptFile only writes the output once the whole file has
+        // authenticated, so a failure never leaves a broken file behind.
+        PocketCrypto.DecryptFile(o.Input, o.Output, password);
+        Ui.Success("Decrypted: " + o.Output);
+        return 0;
+    }
+
+    private static int RunEncryptFolder(Options o)
+    {
+        if (!Directory.Exists(o.Input))
+        {
+            Ui.Error("Folder not found: " + o.Input);
+            return 1;
+        }
+        string inputDir = Path.GetFullPath(o.Input);
+
+        if (o.Purge)
+        {
+            Ui.Warning("Purge: once each encrypted copy is written and checked, its original");
+            Ui.Warning("in " + inputDir + " is overwritten with random data and deleted.");
+            Ui.Warning("Without the password, they can't be recovered.");
+            if (!Ui.Confirm("Delete the originals?"))
+            {
+                Ui.Info("Cancelled. Nothing was changed.");
+                return 1;
+            }
+            Console.WriteLine();
+        }
+
+        string? password = ReadNewPassword();
+        if (password is null)
+        {
+            return 1;
+        }
+
+        Ui.Info("Encrypting every file in " + inputDir);
+        Console.WriteLine();
+        int encrypted = 0, replaced = 0, kept = 0, failed = 0;
+        DirectoryEncryptor.EncryptDirectory(o.Input, o.Output, password, onFile: result =>
+        {
+            if (!result.Succeeded)
+            {
+                failed++;
+                Ui.FileResult("Failed", ConsoleColor.Red, result.RelativePath, Describe(result.Error!));
+                return;
+            }
+            if (!o.Purge)
+            {
+                encrypted++;
+                Ui.FileResult("Encrypted", ConsoleColor.DarkGreen, result.RelativePath);
+                return;
+            }
+
+            string? whyKept = Purge(result.SourcePath, result.OutputPath, password, out bool copyRemoved);
+            if (copyRemoved)
+            {
+                failed++;
+                Ui.FileResult("Failed", ConsoleColor.Red, result.RelativePath,
+                    "the encrypted copy didn't check out, so it was removed and the original kept");
+            }
+            else if (whyKept is not null)
+            {
+                encrypted++;
+                kept++;
+                Ui.FileResult("Kept", ConsoleColor.DarkYellow, result.RelativePath,
+                    "encrypted, but the original couldn't be deleted: " + whyKept);
+            }
+            else
+            {
+                encrypted++;
+                replaced++;
+                Ui.FileResult("Replaced", ConsoleColor.DarkGreen, result.RelativePath);
+            }
+        });
+
+        Console.WriteLine();
+        string summary = $"Done: {encrypted} encrypted, {failed} failed.";
+        if (o.Purge)
+        {
+            summary += $" {replaced} original(s) deleted, {kept} kept.";
+        }
+        if (failed == 0 && kept == 0)
+        {
+            Ui.Success(summary);
+            return 0;
+        }
+        Ui.Warning(summary);
+        return 1;
+    }
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Purge one file: check that <paramref name="copy"/> decrypts in full, then
+    /// overwrite and delete <paramref name="original"/>. Returns null when the
+    /// original is gone, or why it was kept.
+    /// </summary>
+    /// <param name="copyRemoved">
+    /// True when the copy didn't decrypt: it's deleted and the original kept.
+    /// </param>
+    private static string? Purge(string original, string copy, string password, out bool copyRemoved)
+    {
+        copyRemoved = false;
+        try
+        {
+            PocketCrypto.VerifyFile(copy, password);
+        }
+        catch (Exception ex) when (ex is CryptographicException or InvalidDataException or IOException
+            or UnauthorizedAccessException)
+        {
+            try
+            {
+                File.Delete(copy);
+            }
+            catch (Exception deleteError) when (deleteError is IOException or UnauthorizedAccessException)
+            {
+                // Best effort; the original is kept either way.
+            }
+            copyRemoved = true;
+            return "the encrypted copy didn't check out";
         }
 
         try
         {
-            Console.WriteLine("Encrypting all files under: " + Path.GetFullPath(inputDir));
-            DirectoryEncryptionSummary summary = DirectoryEncryptor.EncryptDirectory(
-                inputDir, outputDir, password,
-                onFile: result => Console.WriteLine(result.Succeeded
-                    ? "Encrypted: " + result.RelativePath
-                    : "Failed:    " + result.SourcePath + " (" + result.Error!.Message + ")"));
-
-            Console.WriteLine("Done. " + summary.Succeeded + " file(s) encrypted, " + summary.Failed + " failed.");
-            return summary.Failed == 0 ? 0 : 1;
+            SecureFile.OverwriteAndDelete(original);
+            return null;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return ReportError(ex);
+            return ex.Message;
         }
     }
+
+    private static bool SamePath(string a, string b) =>
+        string.Equals(Path.GetFullPath(a), Path.GetFullPath(b),
+            OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Asks twice to catch typos. Null after three mismatches.</summary>
+    private static string? ReadNewPassword()
+    {
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            string first = Ui.ReadPassword("Password: ");
+            string second = Ui.ReadPassword("Confirm:  ");
+            if (first == second)
+            {
+                return first;
+            }
+            Ui.Warning("The passwords don't match. Try again.");
+        }
+        Ui.Error("Stopped: the passwords didn't match. Nothing was changed.");
+        return null;
+    }
+
+    private static string Describe(Exception ex) => ex switch
+    {
+        CryptographicException => "wrong password, or the file is damaged",
+        _ => ex.Message,
+    };
 
     private static int ReportError(Exception ex)
     {
         switch (ex)
         {
             case CryptographicException:
-                // AES-GCM tag mismatch: wrong password or tampered/corrupt file.
-                Console.WriteLine("Decryption failed: wrong passphrase or the file is corrupted/tampered with.");
+                // AES-GCM tag mismatch: wrong password or a changed/damaged file.
+                Ui.Error("Wrong password, or the file is damaged. Nothing was written.");
                 break;
             case InvalidDataException:
                 // Header validation messages are already user-facing.
-                Console.WriteLine(ex.Message);
+                Ui.Error(ex.Message);
                 break;
             case PlatformNotSupportedException:
-                Console.WriteLine("Not supported: " + ex.Message);
+                Ui.Error("Not supported: " + ex.Message);
                 break;
             case UnauthorizedAccessException:
             case IOException:
-                Console.WriteLine("File error: " + ex.Message);
+                Ui.Error("File error: " + ex.Message);
                 break;
             default:
-                Console.WriteLine("Unexpected error: " + ex.Message);
+                Ui.Error("Unexpected error: " + ex.Message);
                 break;
         }
 
@@ -151,55 +383,5 @@ public static class Program
         }
 
         return 1;
-    }
-
-    // Reads a passphrase from the console without echoing the real characters.
-    private static string ReadPassword(string prompt)
-    {
-        Console.Write(prompt);
-        var sb = new StringBuilder();
-        while (true)
-        {
-            ConsoleKeyInfo keyInfo = Console.ReadKey(intercept: true);
-            if (keyInfo.Key == ConsoleKey.Enter)
-            {
-                Console.WriteLine();
-                break;
-            }
-            else if (keyInfo.Key == ConsoleKey.Backspace)
-            {
-                if (sb.Length > 0)
-                {
-                    sb.Remove(sb.Length - 1, 1);
-                    Console.Write("\b \b");
-                }
-            }
-            else if (!char.IsControl(keyInfo.KeyChar))
-            {
-                sb.Append(keyInfo.KeyChar);
-                Console.Write("*");
-            }
-        }
-
-        // Note: .NET strings are immutable, so the passphrase can't be reliably
-        // zeroed from memory. Acceptable for a personal tool.
-        return sb.ToString();
-    }
-
-    // Prompts for a passphrase twice (encrypt path) to catch typos. Returns
-    // null after 3 mismatched attempts.
-    private static string? ReadNewPasswordWithConfirmation()
-    {
-        for (int attempt = 0; attempt < 3; attempt++)
-        {
-            string first = ReadPassword("Enter passphrase: ");
-            string second = ReadPassword("Confirm passphrase: ");
-            if (first == second)
-            {
-                return first;
-            }
-            Console.WriteLine("Passphrases do not match. Please try again.");
-        }
-        return null;
     }
 }

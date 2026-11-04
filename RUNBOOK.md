@@ -172,12 +172,23 @@ Build it once after each merge and give it a short name for this terminal sessio
 dotnet build PocketEncryptor.Cli -c Release
 Set-Alias pkec (Resolve-Path ".\PocketEncryptor.Cli\bin\Release\net10.0\PocketEncryptor.exe").Path
 
-pkec notes.txt notes.txt.pkec -E        # encrypt (asks twice)
-pkec notes.txt.pkec notes.txt -D        # decrypt
-pkec .\my_folder .\my_folder_enc -r     # encrypt every file in a folder, same password
+pkec notes.txt notes.txt.pkec -E                # encrypt (asks twice)
+pkec notes.txt.pkec notes.txt -D                # decrypt
+pkec .\my_folder .\my_folder_enc -r             # encrypt every file in a folder, same password
+pkec notes.txt notes.txt.pkec -E --purge        # encrypt, then delete the original
+pkec .\my_folder .\my_folder -r --purge         # encrypt a folder in place
+pkec --help                                     # all options
 ```
 
-- `-r` leaves the originals untouched and writes `.pkec` copies with the same subfolders. Decrypt them one at a time with `-D`.
+On the Mac, in Terminal from the repo folder:
+
+```bash
+dotnet build PocketEncryptor.Cli -c Release
+alias pkec="$PWD/PocketEncryptor.Cli/bin/Release/net10.0/PocketEncryptor"
+```
+
+- `-r` writes `.pkec` copies with the same subfolders. Decrypt them one at a time with `-D`.
+- `--purge` (with `-E` or `-r`) asks first, then checks each encrypted copy decrypts before overwriting and deleting its original. Read-only files are kept and listed; folders stay. Without it, originals are never touched.
 - End encrypted names in `.pkec`: the apps then suggest the original name when decrypting. Files from the CLI, the Windows app and the Android app all decrypt in each other.
 
 ## 7. Using the app
