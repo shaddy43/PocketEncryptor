@@ -55,6 +55,29 @@ internal static class Ui
         }
     }
 
+    /// <summary>
+    /// On macOS and Linux the terminal itself echoes keys until .NET's first
+    /// console read turns that off, so a password typed before its prompt showed
+    /// would appear in plain text. Checking for a key is such a read (it doesn't
+    /// wait or take the key), and the terminal stays quiet until the program exits.
+    /// Call it before anything else is printed.
+    /// </summary>
+    public static void HideTypedKeys()
+    {
+        if (Console.IsInputRedirected || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        try
+        {
+            _ = Console.KeyAvailable;
+        }
+        catch (InvalidOperationException)
+        {
+            // No terminal to set up.
+        }
+    }
+
     // ------------------------------------------------------------------
     // Banner and help
     // ------------------------------------------------------------------
