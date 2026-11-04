@@ -65,17 +65,20 @@ Some originals can't be deleted by the app and are kept and listed, such as read
 ## Command line
 
 ```
-PocketEncryptor <input> <output> -E     encrypt a file
-PocketEncryptor <input> <output> -D     decrypt a file
-PocketEncryptor <folder> <output> -r    encrypt every file in a folder (originals untouched)
+PocketEncryptor <file> <output> -E [--purge]      encrypt a file
+PocketEncryptor <file> <output> -D                decrypt a file
+PocketEncryptor <folder> <output> -r [--purge]    encrypt every file in a folder
 ```
 
-The password is asked for with masked input, never passed on the command line. Files from the CLI and the apps open in each other.
+The password is asked for with masked input, never passed on the command line. Files from the CLI and the apps open in each other. `PocketEncryptor --help` lists everything.
 
 ```
 PocketEncryptor notes.txt notes.txt.pkec -E
 PocketEncryptor notes.txt.pkec notes.txt -D
+PocketEncryptor ./photos ./photos-encrypted -r --purge
 ```
+
+`--purge` works like Purge in the apps: it asks first, then for each file writes the encrypted copy, checks that it decrypts, and only then overwrites the original with random data and deletes it. Originals it can't delete, such as read-only files, are kept and listed. Without `--purge`, originals are never touched. To encrypt a folder in place, give it as both input and output.
 
 ## Under the hood
 

@@ -92,6 +92,19 @@ public static class PocketCrypto
         });
     }
 
+    /// <summary>
+    /// Checks that <paramref name="inputPath"/> decrypts in full with
+    /// <paramref name="password"/>, without writing anything. Returns normally
+    /// when it does; otherwise throws as <see cref="DecryptFile"/> would.
+    /// </summary>
+    /// <remarks>Used before deleting an original ("Purge").</remarks>
+    public static void VerifyFile(string inputPath, string password,
+        IProgress<long>? progress = null, CancellationToken cancellationToken = default)
+    {
+        using var input = OpenRead(inputPath);
+        Decrypt(input, Stream.Null, password, progress, cancellationToken);
+    }
+
     // ------------------------------------------------------------------
     // Stream API: constant memory, works with any Stream (e.g. ones from
     // a mobile document picker)

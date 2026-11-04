@@ -45,6 +45,34 @@ public sealed class FileAndDirectoryTests : IDisposable
     }
 
     [Fact]
+    public void VerifyFile_AcceptsAGoodFileAndWritesNothing()
+    {
+        File.WriteAllBytes(P("plain.bin"), RandomBytes(1000));
+        PocketCrypto.EncryptFile(P("plain.bin"), P("enc.pkec"), "pw", Fast);
+
+        PocketCrypto.VerifyFile(P("enc.pkec"), "pw");
+
+        Assert.Equal(2, Directory.GetFiles(_root).Length); // just plain.bin + enc.pkec
+    }
+
+    [Fact]
+    public void VerifyFile_WrongPasswordOrDamagedFile_Throws()
+    {
+        File.WriteAllBytes(P("plain.bin"), RandomBytes(1000));
+        PocketCrypto.EncryptFile(P("plain.bin"), P("enc.pkec"), "pw", Fast);
+
+        Assert.ThrowsAny<CryptographicException>(() => PocketCrypto.VerifyFile(P("enc.pkec"), "wrong"));
+
+        byte[] enc = File.ReadAllBytes(P("enc.pkec"));
+        enc[^1] ^= 1;
+        File.WriteAllBytes(P("enc.pkec"), enc);
+        Assert.ThrowsAny<CryptographicException>(() => PocketCrypto.VerifyFile(P("enc.pkec"), "pw"));
+
+        File.WriteAllBytes(P("enc.pkec"), enc[..^SealedChunk]);
+        Assert.ThrowsAny<CryptographicException>(() => PocketCrypto.VerifyFile(P("enc.pkec"), "pw"));
+    }
+
+    [Fact]
     public void DecryptFile_Truncated_KeepsExistingOutputUntouched()
     {
         File.WriteAllBytes(P("plain.bin"), RandomBytes(1000));
