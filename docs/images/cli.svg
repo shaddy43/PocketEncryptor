@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="717" height="465" viewBox="0 0 717 465" role="img" aria-label="PocketEncryptor — Terminal">
+<rect width="717" height="465" rx="12" fill="#0d1117"/>
+<path d="M0 12a12 12 0 0 1 12-12h693a12 12 0 0 1 12 12v24H0z" fill="#161b22"/>
+<rect x="0.5" y="0.5" width="716" height="464" rx="11.5" fill="none" stroke="#30363d"/>
+<circle cx="20" cy="18.0" r="6" fill="#ff5f57"/>
+<circle cx="40" cy="18.0" r="6" fill="#febc2e"/>
+<circle cx="60" cy="18.0" r="6" fill="#28c840"/>
+<text x="358.5" y="22.5" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#8b949e">PocketEncryptor — Terminal</text>
+<g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace" font-size="14" fill="#e6edf3" xml:space="preserve">
+<text y="67"><tspan x="22.0" fill="#3fb950">$</tspan><tspan x="30.4"> PocketEncryptor ./photos ./vault -r --purge</tspan></text>
+<text y="101"><tspan x="22.0" fill="#39c5cf">     ┌───┐</tspan></text>
+<text y="118"><tspan x="22.0" fill="#39c5cf">     │   │</tspan><tspan x="106.3">     Pocket</tspan><tspan x="199.0" fill="#39c5cf">Encryptor</tspan><tspan x="274.9" fill="#8b949e">  v2.0</tspan></text>
+<text y="135"><tspan x="22.0" fill="#39c5cf">   ┌─┴───┴─┐</tspan><tspan x="123.2">   Lock any file with a password. Open it on any device.</tspan></text>
+<text y="152"><tspan x="22.0" fill="#39c5cf">   │   ●   │</tspan><tspan x="123.2">   </tspan><tspan x="148.4" fill="#8b949e">AES-256-GCM · Windows · macOS · Android · iPhone</tspan></text>
+<text y="169"><tspan x="22.0" fill="#39c5cf">   │   ▀   │</tspan></text>
+<text y="186"><tspan x="22.0" fill="#39c5cf">   └───────┘</tspan><tspan x="123.2">   </tspan><tspan x="148.4" fill="#8b949e">by </tspan><tspan x="173.7" fill="#39c5cf">@shaddy43</tspan></text>
+<text y="220"><tspan x="22.0" fill="#e3b341">  Purge: once each encrypted copy is written and checked, its original</tspan></text>
+<text y="237"><tspan x="22.0" fill="#e3b341">  in /Users/alex/Pictures/photos is overwritten with random data and deleted.</tspan></text>
+<text y="254"><tspan x="22.0" fill="#e3b341">  Without the password, they can&#x27;t be recovered.</tspan></text>
+<text y="271"><tspan x="22.0" fill="#e3b341">  Delete the originals? [y/N] </tspan><tspan x="274.9">y</tspan></text>
+<text y="305"><tspan x="22.0">  Password: **************</tspan></text>
+<text y="322"><tspan x="22.0">  Confirm:  **************</tspan></text>
+<text y="339"><tspan x="22.0">  Encrypting every file in /Users/alex/Pictures/photos</tspan></text>
+<text y="373"><tspan x="22.0" fill="#3fb950">  Replaced   </tspan><tspan x="131.6">family.jpg</tspan></text>
+<text y="390"><tspan x="22.0" fill="#3fb950">  Replaced   </tspan><tspan x="131.6">beach.jpg</tspan></text>
+<text y="407"><tspan x="22.0" fill="#3fb950">  Replaced   </tspan><tspan x="131.6">sunset.jpg</tspan></text>
+<text y="441"><tspan x="22.0" fill="#3fb950">  Done: 3 encrypted, 0 failed. 3 original(s) deleted, 0 kept.</tspan></text>
+</g></svg>
