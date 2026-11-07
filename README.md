@@ -1,6 +1,31 @@
-# PocketEncryptor
+<p align="center">
+  <img src="PocketEncryptor.App/Resources/Images/pocketlock.svg" width="96" height="96" alt="PocketEncryptor logo">
+</p>
 
-**Lock a file on one device. Open it on any other.**
+<h1 align="center">PocketEncryptor</h1>
+
+<p align="center">
+  <strong>Lock a file on one device. Open it on any other.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-2.0-1F5F57" alt="Version 2.0">
+  <img src="https://img.shields.io/badge/platforms-Windows%20%C2%B7%20macOS%20%C2%B7%20Android%20%C2%B7%20iOS-1F5F57" alt="Windows, macOS, Android, iOS">
+  <img src="https://img.shields.io/badge/encryption-AES--256--GCM-E8A33D" alt="AES-256-GCM">
+  <img src="https://img.shields.io/badge/.NET-10-512BD4" alt=".NET 10">
+</p>
+
+<p align="center">
+  <a href="#download">Download</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#command-line">Command line</a> ·
+  <a href="#under-the-hood">Under the hood</a> ·
+  <a href="#build-it-yourself">Build it yourself</a>
+</p>
+
+<p align="center">
+  <img src="docs/images/hero.png" width="860" alt="PocketEncryptor on a Mac and an iPhone, with three files ready to encrypt">
+</p>
 
 PocketEncryptor is a small, simple app that encrypts your files with a password. A file you lock on your Android phone opens on your Windows PC, your Mac or your iPhone, and the other way round. It's the same app, the same file and the same password everywhere.
 
@@ -12,6 +37,27 @@ There's no account, no cloud and no internet: just your file, your password and 
 | 🔁 **Everywhere** | Android, iPhone and iPad, macOS, Windows, and a command-line tool, all reading the same `.pkec` files |
 | 👆 **Simple** | Pick files, type a password, press one button |
 | 🕶️ **Private** | Works offline, asks for no permissions, collects nothing ([privacy policy](PRIVACY.md)) |
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/images/iphone-light.png" width="300" alt="iPhone app in light mode with three files chosen"><br>
+      <sub><b>iPhone, light mode.</b> Pick several files at once</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/images/iphone-dark.png" width="300" alt="iPhone app in dark mode with the password entered"><br>
+      <sub><b>iPhone, dark mode.</b> Password strength and a match check</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <img src="docs/images/mac-app.png" width="760" alt="Mac app in dark mode with three files chosen"><br>
+      <sub><b>Mac and Windows.</b> A wider layout with drag and drop</sub>
+    </td>
+  </tr>
+</table>
 
 ## Download
 
@@ -39,6 +85,7 @@ These builds aren't signed by Microsoft or Apple yet, so the first launch asks y
 
 That's it. `photo.jpg` becomes `photo.jpg.pkec`; send it, store it or back it up anywhere. On any device, open the `.pkec` file with the same password to get `photo.jpg` back.
 
+> [!IMPORTANT]
 > **Keep your password safe.** It is never stored anywhere, and there is no way to recover a file without it.
 
 You can also bring files straight in:
@@ -63,6 +110,10 @@ Tick **Purge** when encrypting to swap your files for their encrypted versions. 
 Some originals can't be deleted by the app and are kept and listed, such as read-only files and files shared from another app. No app can promise a deleted file leaves no trace (SSDs, backups, cloud sync and the Recycle Bin keep their own copies), so turn on full-disk encryption (BitLocker, FileVault; phones have it built in) as well.
 
 ## Command line
+
+<p align="center">
+  <img src="docs/images/cli.svg" width="720" alt="The PocketEncryptor command line encrypting a folder with --purge">
+</p>
 
 ```
 PocketEncryptor <file> <output> -E [--purge]      encrypt a file
@@ -90,7 +141,7 @@ PocketEncryptor ./photos ./photos-encrypted -r --purge
 - **Compatible:** files from version 1 still decrypt; new files use format v2.
 
 <details>
-<summary>File format (v2)</summary>
+<summary><b>File format (v2)</b></summary>
 
     [4 bytes]  magic "PKEC"
     [1 byte]   format version 0x02
@@ -127,4 +178,7 @@ PocketEncryptor.App/    the app (.NET MAUI): Windows, macOS, iOS, Android
 PocketEncryptor.Cli/    command-line tool
 PocketEncryptor.Tests/  tests for the core
 scripts/                release build scripts
+docs/images/            screenshots used in this README
 ```
+
+<p align="center"><sub>Made by @shaddy43</sub></p>
